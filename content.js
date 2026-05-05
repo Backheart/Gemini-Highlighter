@@ -1,22 +1,26 @@
-// Function to apply the highlight
 async function applyHighlight(color) {
   const selection = window.getSelection();
-  if (selection.rangeCount > 0) {
-    const range = selection.getRangeAt(0);
-    const span = document.createElement("span");
-    span.style.backgroundColor = color;
-    span.classList.add("gemini-highlighted-text"); // Use a class for easier identification
+  if (!selection.rangeCount) return;
 
-    // Wrap the selection content
-    try {
-      range.surroundContents(span);
-      // Optional: Clear selection after highlighting
-      // selection.removeAllRanges(); 
-    } catch (e) {
-      console.warn("Could not highlight mixed content types: ", e);
-      alert("Unable to highlight this specific selection.");
-    }
+  const range = selection.getRangeAt(0);
+  
+  // Create the highlight span
+  const span = document.createElement("span");
+  span.style.backgroundColor = color;
+  span.className = "gemini-highlighted-text";
+
+  try {
+    // extractContents() is more flexible than surroundContents()
+    // It pulls the content out, then we put it inside our span, 
+    // then put the span back where the content was.
+    span.appendChild(range.extractContents());
+    range.insertNode(span);
+  } catch (e) {
+    console.error("Highlighter Error:", e);
+    // If it still fails, it's likely a very complex structural issue
   }
+  
+  selection.removeAllRanges(); // Clear the blue browser selection
 }
 
 // Function to handle key commands (e.g., ALT+H) if we add them later
