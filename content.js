@@ -1,65 +1,86 @@
-// A robust helper function to traverse and wrap only raw text nodes
 function highlightSelection(color) {
     const userSelection = window.getSelection();
     if (userSelection.rangeCount === 0) return;
 
     const range = userSelection.getRangeAt(0);
 
-    // 1. Get all the nodes within the range, including text nodes
+    // We use the 'surroundContents' logic only for the small pieces 
+    // that the TreeWalker finds to ensure we don't break the layout.
     const treeWalker = document.createTreeWalker(
         range.commonAncestorContainer,
         NodeFilter.SHOW_TEXT,
         {
             acceptNode: function(node) {
-                if (range.intersectsNode(node)) {
-                    return NodeFilter.FILTER_ACCEPT;
-                }
-                return NodeFilter.FILTER_REJECT;
+                return range.intersectsNode(node) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
             }
         }
     );
 
-    const nodeList = [];
+    const nodesToProcess = [];
     while (treeWalker.nextNode()) {
-        nodeList.push(treeWalker.currentNode);
+        nodesToProcess.push(treeWalker.currentNode);
     }
 
-    // 2. Iterate and highlight each specific TextNode
-    nodeList.forEach((textNode) => {
-        // Find the specific portion of the TextNode that is selected
-        let start = (textNode === range.startContainer) ? range.startOffset : 0;
-        let end = (textNode === range.endContainer) ? range.endOffset : textNode.nodeValue.length;
+    nodesToProcess.forEach(node => {
+        const nodeRange = document.createRange();
+        nodeRange.selectNodeContents(node);
 
-        // Skip nodes with no selection or just whitespace (this avoids layout shifts)
-        if (start === end || textNode.nodeValue.trim() === '') return;
+        // Determine the intersection of the selection and this specific text node
+        let start = (node === range.startContainer) ? range.startOffset : 0;
+        let end = (node === range.endContainer) ? range.endOffset : node.nodeValue.length;
 
-        // Extract just the selected part of the text
-        const selectedText = textNode.nodeValue.substring(start, end);
+        if (start >= end) return;
 
-        // Create the highlighter span
+        const subRange = document.createRange();
+        subRange.setStart(node, start);
+        subRange.setEnd(node, end);
+
         const span = document.createElement('span');
         span.style.backgroundColor = color;
         span.className = "gemini-highlighted-text";
-        span.textContent = selectedText;
-
-        // Prepare the new structure: [TEXT BEFORE] + [SPAN] + [TEXT AFTER]
-        const parent = textNode.parentNode;
         
-        // Handle potential duplication or weird structural issues
-        if (parent.tagName === 'SPAN' && parent.classList.contains('gemini-highlighted-text')) return;
-
-        // 3. Perform the safe swap in the DOM
-        const textAfter = textNode.splitText(end);
-        parent.insertBefore(span, textAfter);
-        textNode.nodeValue = textNode.nodeValue.substring(0, start);
+        try {
+            // We wrap the selection. If it's already in a span, 
+            // this creates a nested span (Double Highlight).
+            subRange.surroundContents(span);
+        } catch (e) {
+            // If surroundContents fails (e.g. partial selection of a link), 
+            // we fall back to the safer insertNode method.
+            const content = subRange.extractContents();
+            span.appendChild(content);
+            subRange.insertNode(span);
+        }
     });
 
-    userSelection.removeAllRanges(); // Clear the blue selection
+    userSelection.removeAllRanges();
 }
 
-// Keep the message listener the same
+// New function to remove highlights only in the selected area
+function removeSelectionHighlight() {
+    const selection = window.getSelection();
+    if (selection.rangeCount === 0) return;
+
+    const range = selection.getRangeAt(0);
+    const highlights = document.querySelectorAll('.gemini-highlighted-text');
+
+    highlights.forEach(span => {
+        // Check if the highlighted span is within the current selection
+        if (selection.containsNode(span, true)) {
+            // Replace the span with its own text content (unwrapping it)
+            span.replaceWith(...span.childNodes);
+        }
+    });
+    selection.removeAllRanges();
+}
+
+// Updated Message Listener
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === "applyHighlight") {
     highlightSelection(request.color);
+  } else if (request.action === "clearHighlights") {
+    const highlights = document.querySelectorAll('.gemini-highlighted-text');
+    highlights.forEach(h => h.replaceWith(...h.childNodes));
+  } else if (request.action === "clearSelection") {
+    removeSelectionHighlight();
   }
 });
