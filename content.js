@@ -1,50 +1,65 @@
-async function applyHighlight(color) {
-  const selection = window.getSelection();
-  if (!selection.rangeCount) return;
+// A robust helper function to traverse and wrap only raw text nodes
+function highlightSelection(color) {
+    const userSelection = window.getSelection();
+    if (userSelection.rangeCount === 0) return;
 
-  const range = selection.getRangeAt(0);
-  
-  // Create the highlight span
-  const span = document.createElement("span");
-  span.style.backgroundColor = color;
-  span.className = "gemini-highlighted-text";
+    const range = userSelection.getRangeAt(0);
 
-  try {
-    // extractContents() is more flexible than surroundContents()
-    // It pulls the content out, then we put it inside our span, 
-    // then put the span back where the content was.
-    span.appendChild(range.extractContents());
-    range.insertNode(span);
-  } catch (e) {
-    console.error("Highlighter Error:", e);
-    // If it still fails, it's likely a very complex structural issue
-  }
-  
-  selection.removeAllRanges(); // Clear the blue browser selection
-}
-
-// Function to handle key commands (e.g., ALT+H) if we add them later
-function handleKeydown(event) {
-    // Logic for keyboard shortcuts
-}
-
-// Function to reset all highlights (for the popup button)
-function clearAllHighlights() {
-    const highlights = document.querySelectorAll('.gemini-highlighted-text');
-    highlights.forEach(highlight => {
-        const parent = highlight.parentNode;
-        while(highlight.firstChild) {
-            parent.insertBefore(highlight.firstChild, highlight);
+    // 1. Get all the nodes within the range, including text nodes
+    const treeWalker = document.createTreeWalker(
+        range.commonAncestorContainer,
+        NodeFilter.SHOW_TEXT,
+        {
+            acceptNode: function(node) {
+                if (range.intersectsNode(node)) {
+                    return NodeFilter.FILTER_ACCEPT;
+                }
+                return NodeFilter.FILTER_REJECT;
+            }
         }
-        parent.removeChild(highlight);
+    );
+
+    const nodeList = [];
+    while (treeWalker.nextNode()) {
+        nodeList.push(treeWalker.currentNode);
+    }
+
+    // 2. Iterate and highlight each specific TextNode
+    nodeList.forEach((textNode) => {
+        // Find the specific portion of the TextNode that is selected
+        let start = (textNode === range.startContainer) ? range.startOffset : 0;
+        let end = (textNode === range.endContainer) ? range.endOffset : textNode.nodeValue.length;
+
+        // Skip nodes with no selection or just whitespace (this avoids layout shifts)
+        if (start === end || textNode.nodeValue.trim() === '') return;
+
+        // Extract just the selected part of the text
+        const selectedText = textNode.nodeValue.substring(start, end);
+
+        // Create the highlighter span
+        const span = document.createElement('span');
+        span.style.backgroundColor = color;
+        span.className = "gemini-highlighted-text";
+        span.textContent = selectedText;
+
+        // Prepare the new structure: [TEXT BEFORE] + [SPAN] + [TEXT AFTER]
+        const parent = textNode.parentNode;
+        
+        // Handle potential duplication or weird structural issues
+        if (parent.tagName === 'SPAN' && parent.classList.contains('gemini-highlighted-text')) return;
+
+        // 3. Perform the safe swap in the DOM
+        const textAfter = textNode.splitText(end);
+        parent.insertBefore(span, textAfter);
+        textNode.nodeValue = textNode.nodeValue.substring(0, start);
     });
+
+    userSelection.removeAllRanges(); // Clear the blue selection
 }
 
-// Initialize: Listen for messages from the popup or keyboard shortcuts
+// Keep the message listener the same
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === "applyHighlight") {
-    applyHighlight(request.color);
-  } else if (request.action === "clearHighlights") {
-    clearAllHighlights();
+    highlightSelection(request.color);
   }
 });
