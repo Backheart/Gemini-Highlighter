@@ -80,13 +80,21 @@ function removeSelectionHighlight() {
 // --- SAVING LOGIC ---
 function saveHighlightsToStorage() {
     const highlights = [];
+    // We need the same list of containers used in the loader
+    const allElements = Array.from(document.querySelectorAll('p, li, div.message-content'));
+
     document.querySelectorAll('.gemini-highlighted-text').forEach(span => {
+        // Find which "House" this span lives in
+        const parent = span.closest('p, li, div.message-content');
+        const elementIndex = allElements.indexOf(parent);
+
         highlights.push({
             text: span.textContent,
-            color: span.style.backgroundColor
+            color: span.style.backgroundColor,
+            elementIndex: elementIndex // This was the missing piece!
         });
     });
-    // Use the URL as a key so different chats have different highlights
+
     const pageId = window.location.href;
     chrome.storage.local.set({ [pageId]: highlights });
 }
@@ -96,24 +104,38 @@ function applySavedHighlights() {
     const pageId = window.location.href;
     chrome.storage.local.get([pageId], (result) => {
         const saved = result[pageId];
-        if (!saved || saved.length === 0) return;
+        if (!saved) return;
 
-        // We search the page for the saved text and wrap it
-        // This is a simplified version; complex HTML might need more precision
+        // We use the same specific containers as before for stability
+        const allElements = Array.from(document.querySelectorAll('p, li, div.message-content'));
+
         saved.forEach(item => {
-            const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
-            let node;
-            while (node = walker.nextNode()) {
-                if (node.nodeValue.includes(item.text) && !node.parentElement.classList.contains('gemini-highlighted-text')) {
-                    const index = node.nodeValue.indexOf(item.text);
-                    const range = document.createRange();
-                    range.setStart(node, index);
-                    range.setEnd(node, index + item.text.length);
-                    
-                    const span = document.createElement('span');
-                    span.className = "gemini-highlighted-text";
-                    span.style.backgroundColor = item.color;
-                    range.surroundContents(span);
+            const targetElement = allElements[item.elementIndex];
+            
+            // SAFETY LOCK: Only proceed if the "House Number" exists 
+            // AND the text inside matches exactly what we saved.
+            if (targetElement && targetElement.textContent.includes(item.text)) {
+                
+                // Avoid double-highlighting the same spot
+                if (targetElement.querySelector('.gemini-highlighted-text')) return;
+
+                const span = document.createElement('span');
+                span.className = "gemini-highlighted-text";
+                span.style.backgroundColor = item.color;
+                
+                // Use a safer TextNode search instead of innerHTML.replace
+                // This prevents the "weird shifting"
+                const walker = document.createTreeWalker(targetElement, NodeFilter.SHOW_TEXT);
+                let node;
+                while (node = walker.nextNode()) {
+                    if (node.nodeValue.includes(item.text)) {
+                        const index = node.nodeValue.indexOf(item.text);
+                        const range = document.createRange();
+                        range.setStart(node, index);
+                        range.setEnd(node, index + item.text.length);
+                        range.surroundContents(span);
+                        break; // Stop after the first match in this specific element
+                    }
                 }
             }
         });
@@ -134,24 +156,18 @@ observer.observe(document.body, { childList: true, subtree: true });
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.action === "applyHighlight") {
         highlightSelection(request.color);
-        saveHighlightsToStorage(); // Save immediately after highlighting
+        saveHighlightsToStorage(); 
     } else if (request.action === "clearHighlights") {
         const highlights = document.querySelectorAll('.gemini-highlighted-text');
         highlights.forEach(h => h.replaceWith(...h.childNodes));
-        chrome.storage.local.remove(window.location.href); // Wipe the memory for this page
+        chrome.storage.local.remove(window.location.href); 
+    } else if (request.action === "clearSelection") {
+        // This now triggers your cleanup function
+        removeSelectionHighlight();
+        // Crucial: Save the new state so the cleared part stays cleared on refresh!
+        saveHighlightsToStorage(); 
     }
 });
 
-// --- MESSAGE LISTENER ---
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-    if (request.action === "applyHighlight") {
-        highlightSelection(request.color);
-        saveHighlightsToStorage(); // Save immediately after highlighting
-    } else if (request.action === "clearHighlights") {
-        const highlights = document.querySelectorAll('.gemini-highlighted-text');
-        highlights.forEach(h => h.replaceWith(...h.childNodes));
-        chrome.storage.local.remove(window.location.href); // Wipe the memory for this page
-    }
-});
 
 
