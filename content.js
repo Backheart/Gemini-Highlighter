@@ -1,48 +1,50 @@
-// --- 1. CORE HIGHLIGHTING LOGIC ---
-function highlightSelection(color) {
-    const userSelection = window.getSelection();
-    if (userSelection.rangeCount === 0) return;
+// Helper to convert hex to rgba for transparency
+function hexToRGBA(hex, opacity) {
+    let r = parseInt(hex.slice(1, 3), 16),
+        g = parseInt(hex.slice(3, 5), 16),
+        b = parseInt(hex.slice(5, 7), 16);
+    return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+}
 
-    const range = userSelection.getRangeAt(0);
+function highlightSelection(color, opacity) {
+    const selection = window.getSelection();
+    if (!selection || selection.isCollapsed) return;
 
+    const range = selection.getRangeAt(0);
+    const rgbaColor = hexToRGBA(color, opacity);
+
+    // Get all text nodes within range
     const treeWalker = document.createTreeWalker(
         range.commonAncestorContainer,
         NodeFilter.SHOW_TEXT,
-        {
-            acceptNode: (node) => range.intersectsNode(node) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT
-        }
+        { acceptNode: (node) => range.intersectsNode(node) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT }
     );
 
-    const nodesToProcess = [];
-    while (treeWalker.nextNode()) nodesToProcess.push(treeWalker.currentNode);
+    const nodes = [];
+    while (treeWalker.nextNode()) nodes.push(treeWalker.currentNode);
 
-    nodesToProcess.forEach(node => {
-        let start = (node === range.startContainer) ? range.startOffset : 0;
-        let end = (node === range.endContainer) ? range.endOffset : node.nodeValue.length;
+    nodes.forEach(node => {
+        const start = node === range.startContainer ? range.startOffset : 0;
+        const end = node === range.endContainer ? range.endOffset : node.nodeValue.length;
 
-        if (start >= end || node.nodeValue.trim() === "") return;
-
-        const subRange = document.createRange();
-        subRange.setStart(node, start);
-        subRange.setEnd(node, end);
-
-        const span = document.createElement('span');
-        span.className = "gemini-highlighted-text";
-        span.style.backgroundColor = color;
-
-        try {
-            subRange.surroundContents(span);
-        } catch (e) {
-            const content = subRange.extractContents();
-            span.appendChild(content);
-            subRange.insertNode(span);
+        if (start < end) {
+            const span = document.createElement('span');
+            span.className = "gemini-highlighted-text";
+            span.style.backgroundColor = rgbaColor;
+            
+            const partToHighlight = node.splitText(start);
+            partToHighlight.splitText(end - start);
+            
+            const parent = partToHighlight.parentNode;
+            parent.replaceChild(span, partToHighlight);
+            span.appendChild(partToHighlight);
         }
     });
-
-    userSelection.removeAllRanges();
+    
+    selection.removeAllRanges();
+    saveHighlightsToStorage();
 }
 
-// --- 2. SURGICAL CLEAR (Prevents Grey Ghosting) ---
 function removeSelectionHighlight() {
     const selection = window.getSelection();
     if (selection.rangeCount === 0) return;
@@ -52,20 +54,21 @@ function removeSelectionHighlight() {
 
     highlights.forEach(span => {
         if (range.intersectsNode(span)) {
-            // Converts the span back into naked, unstyled text
-            const textNode = document.createTextNode(span.textContent);
-            span.parentNode.replaceChild(textNode, span);
+            const parent = span.parentNode;
+            while (span.firstChild) {
+                parent.insertBefore(span.firstChild, span);
+            }
+            span.remove();
         }
     });
     
-    document.body.normalize(); // Cleans up fragmented text nodes
+    document.body.normalize();
     selection.removeAllRanges();
+    saveHighlightsToStorage();
 }
 
-// --- 3. PERSISTENCE LOGIC (The Memory) ---
-
-// Define the "Neighborhood" - these containers must be identical in both functions
-const TARGET_CONTAINERS = 'p, li, div.message-content, pre';
+// Storage Logic
+const TARGET_CONTAINERS = 'p, li, div.message-content, pre, span';
 
 function saveHighlightsToStorage() {
     const highlights = [];
@@ -73,17 +76,15 @@ function saveHighlightsToStorage() {
 
     document.querySelectorAll('.gemini-highlighted-text').forEach(span => {
         const parent = span.closest(TARGET_CONTAINERS);
-        const elementIndex = allElements.indexOf(parent);
-
-        if (elementIndex !== -1) {
+        const index = allElements.indexOf(parent);
+        if (index !== -1) {
             highlights.push({
                 text: span.textContent,
                 color: span.style.backgroundColor,
-                elementIndex: elementIndex
+                index: index
             });
         }
     });
-
     chrome.storage.local.set({ [window.location.href]: highlights });
 }
 
@@ -93,57 +94,82 @@ function applySavedHighlights() {
         if (!saved) return;
 
         const allElements = Array.from(document.querySelectorAll(TARGET_CONTAINERS));
-
         saved.forEach(item => {
-            const targetElement = allElements[item.elementIndex];
-            
-            // Only apply if the "House Number" matches the expected text
-            if (targetElement && targetElement.textContent.includes(item.text)) {
-                if (targetElement.querySelector('.gemini-highlighted-text')) {
-                    // Check if this specific text is already highlighted to avoid duplicates
-                    const existingSpans = Array.from(targetElement.querySelectorAll('.gemini-highlighted-text'));
-                    if (existingSpans.some(s => s.textContent === item.text)) return;
-                }
+            const target = allElements[item.index];
+            if (!target) return;
 
-                const walker = document.createTreeWalker(targetElement, NodeFilter.SHOW_TEXT);
-                let node;
-                while (node = walker.nextNode()) {
-                    if (node.nodeValue.includes(item.text)) {
-                        const index = node.nodeValue.indexOf(item.text);
-                        const range = document.createRange();
-                        range.setStart(node, index);
-                        range.setEnd(node, index + item.text.length);
-                        
-                        const span = document.createElement('span');
-                        span.className = "gemini-highlighted-text";
-                        span.style.backgroundColor = item.color;
-                        
-                        try { range.surroundContents(span); } catch(e) {}
-                        break; 
-                    }
+            // Search for the text within the target element's text nodes
+            const walker = document.createTreeWalker(target, NodeFilter.SHOW_TEXT);
+            let node;
+            while (node = walker.nextNode()) {
+                const idx = node.nodeValue.indexOf(item.text);
+                if (idx !== -1 && !node.parentElement.classList.contains('gemini-highlighted-text')) {
+                    const span = document.createElement('span');
+                    span.className = "gemini-highlighted-text";
+                    span.style.backgroundColor = item.color;
+                    
+                    const part = node.splitText(idx);
+                    part.splitText(item.text.length);
+                    part.parentNode.replaceChild(span, part);
+                    span.appendChild(part);
+                    break;
                 }
             }
         });
     });
 }
 
-// --- 4. THE WATCHDOG & LISTENERS ---
-
+// Watch for Gemini dynamic updates
 const observer = new MutationObserver(() => {
     clearTimeout(window.loadTimer);
-    window.loadTimer = setTimeout(applySavedHighlights, 500);
+    window.loadTimer = setTimeout(applySavedHighlights, 800);
 });
 observer.observe(document.body, { childList: true, subtree: true });
 
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+// Update your applyHighlight listener to also update local cache if needed
+chrome.runtime.onMessage.addListener((request) => {
     if (request.action === "applyHighlight") {
-        highlightSelection(request.color);
-        saveHighlightsToStorage();
+        highlightSelection(request.color, request.opacity);
+    } 
+    // ... (rest of your listeners)
+});
+
+// Listen for messages from popup
+chrome.runtime.onMessage.addListener((request) => {
+    if (request.action === "applyHighlight") {
+        highlightSelection(request.color, request.opacity);
     } else if (request.action === "clearHighlights") {
         document.querySelectorAll('.gemini-highlighted-text').forEach(h => h.replaceWith(...h.childNodes));
         chrome.storage.local.remove(window.location.href);
     } else if (request.action === "clearSelection") {
         removeSelectionHighlight();
-        saveHighlightsToStorage(); // Update memory after clearing a piece
     }
 });
+
+
+document.addEventListener('mouseup', () => {
+    // Small delay to ensure the selection is fully captured by the browser
+    setTimeout(handleAutoHighlight, 50);
+});
+
+async function handleAutoHighlight() {
+    // 1. Get the latest config from storage
+    const data = await chrome.storage.local.get(['lastConfig']);
+    const config = data.lastConfig;
+
+    if (!config || !config.autoMode) return;
+
+    // 2. Check Selection
+    const selection = window.getSelection();
+    const selectedText = selection.toString().trim();
+
+    // 3. Minimum Length Check (5 characters)
+    if (selectedText.length > 5) {
+        // Ensure we aren't clicking inside an existing highlight
+        const parent = selection.anchorNode.parentElement;
+        if (parent && parent.classList.contains('gemini-highlighted-text')) return;
+
+        // 4. Apply Highlight using the saved last color/opacity
+        highlightSelection(config.color, config.opacity);
+    }
+}

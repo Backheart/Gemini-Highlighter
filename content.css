@@ -1,6 +1,7 @@
-/* Style for the highlighted spans */
 .gemini-highlighted-text {
-    color: white !important;
-    border-radius: 3px;
-    padding: 1px 2px;
+    color: inherit !important; /* Keeps text readable */
+    border-radius: 4px;
+    padding: 2px 0;
+    box-shadow: 0 0 2px rgba(0,0,0,0.1);
+    transition: background-color 0.3s ease;
 }
