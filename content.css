@@ -5,3 +5,23 @@
     box-shadow: 0 0 2px rgba(0,0,0,0.1);
     transition: background-color 0.3s ease;
 }
+
+/* Sidebar Styling injected into Gemini */
+#gemini-highlighter-sidebar {
+    position: fixed;
+    top: 0;
+    left: -280px; /* Hidden off-screen by default */
+    width: 260px;
+    height: 100vh;
+    border: none;
+    border-right: 1px solid rgba(255,255,255,0.1);
+    z-index: 999999;
+    background: #1e1e1e;
+    box-shadow: 5px 0 15px rgba(0,0,0,0.5);
+    transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    color-scheme: dark;
+}
+
+#gemini-highlighter-sidebar.open {
+    left: 0; /* Slides into view */
+}

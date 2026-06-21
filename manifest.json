@@ -1,27 +1,34 @@
 {
   "manifest_version": 3,
-  "name": "Gemini Highlighter Tool",
-  "version": "1.0",
-  "description": "Allows you to highlight and color-code text on Gemini.",
+  "name": "Gemini Highlighter Pro",
+  "version": "2.0",
+  "description": "Sidebar-based text highlighter for Gemini with Auto-Mode and Export.",
   "permissions": [
     "storage",
     "activeTab",
-    "scripting"
+    "scripting",
+    "contextMenus"
   ],
   "host_permissions": [
     "*://gemini.google.com/*"
   ],
+  "background": {
+    "service_worker": "background.js"
+  },
   "action": {
-    "default_title": "Gemini Highlight Tool",
-    "default_popup": "popup.html"
+    "default_title": "Toggle Highlighter Sidebar"
   },
   "content_scripts": [
     {
-      "matches": [
-        "*://gemini.google.com/*"
-      ],
+      "matches": ["*://gemini.google.com/*"],
       "js": ["content.js"],
       "css": ["content.css"]
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["sidebar.html", "sidebar.js"],
+      "matches": ["*://gemini.google.com/*"]
     }
   ],
   "icons": {

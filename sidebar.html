@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    :root { --bg: #1e1e1e; --card: #2d2d2d; --text: #e0e0e0; --accent: #4a90e2; }
+    body { 
+      width: 100%; height: 100vh; padding: 20px; box-sizing: border-box;
+      font-family: 'Segoe UI', system-ui, sans-serif; 
+      background: var(--bg); color: var(--text); margin: 0;
+    }
+    h2 { font-size: 18px; margin-top: 0; border-bottom: 1px solid #444; padding-bottom: 10px; }
+    h4 { margin: 15px 0 8px 0; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px; color: #aaa; }
+    
+    .grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 15px; }
+    .color-btn { height: 40px; border-radius: 6px; border: 2px solid transparent; cursor: pointer; transition: transform 0.1s; }
+    .color-btn:hover { transform: scale(1.05); }
+    #blue { background-color: #007bff; }
+    #red { background-color: #dc3545; }
+    #green { background-color: #28a745; }
+
+    .action-btn { 
+      width: 100%; margin: 6px 0; padding: 10px; border: none; border-radius: 6px;
+      cursor: pointer; font-weight: 600; font-size: 13px; background: var(--card); color: white;
+    }
+    .action-btn:hover { background: #444; }
+    
+    #exportBtn { background: var(--accent); color: white; margin-top: 20px; }
+    #exportBtn:hover { background: #357abd; }
+    #clear { color: #ff6b6b; border: 1px solid #444; }
+
+    .opacity-controls { display: flex; gap: 5px; background: var(--card); padding: 4px; border-radius: 8px; }
+    .opacity-btn { flex: 1; padding: 8px; border: none; border-radius: 5px; cursor: pointer; background: transparent; color: #888; }
+    .opacity-btn.active { background: #555; color: white; }
+
+    .auto-mode-container {
+      display: flex; justify-content: space-between; align-items: center;
+      background: var(--card); padding: 12px; border-radius: 8px; margin: 15px 0;
+    }
+    .label-text { font-size: 13px; font-weight: 600; color: #ccc; }
+    .switch { position: relative; display: inline-block; width: 38px; height: 22px; }
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #555; border-radius: 34px; transition: .4s; }
+    .slider:before { position: absolute; content: ""; height: 16px; width: 16px; left: 3px; bottom: 3px; background-color: white; border-radius: 50%; transition: .4s; }
+    input:checked + .slider { background-color: var(--accent); }
+    input:checked + .slider:before { transform: translateX(16px); }
+  </style>
+</head>
+<body>
+  <h2>Highlighter Pro</h2>
+  
+  <h4>Colors</h4>
+  <div class="grid">
+    <div id="blue" class="color-btn" data-color="#007bff"></div>
+    <div id="red" class="color-btn" data-color="#dc3545"></div>
+    <div id="green" class="color-btn" data-color="#28a745"></div>
+  </div>
+
+  <div class="auto-mode-container">
+    <span class="label-text">Auto-Highlight</span>
+    <label class="switch">
+      <input type="checkbox" id="autoModeToggle">
+      <span class="slider"></span>
+    </label>
+  </div>
+
+  <h4>Intensity</h4>
+  <div class="opacity-controls">
+    <button id="lowOpacity" class="opacity-btn">Low</button>
+    <button id="defaultOpacity" class="opacity-btn active">Solid</button>
+  </div>
+
+  <h4 style="margin-top: 25px;">Actions</h4>
+  <button id="exportBtn" class="action-btn">Export Highlights</button>
+  <button id="clearSelection" class="action-btn">Clear Selected Text</button>
+  <button id="clear" class="action-btn">Clear All Page</button>
+
+  <script src="sidebar.js"></script>
+</body>
+</html>
