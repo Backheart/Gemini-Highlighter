@@ -1,4 +1,4 @@
-// --- 1. SIDEBAR INJECTION ---
+// --- 1. SIDEBAR INJECTION & LOGIC ---
 function toggleSidebar() {
     let sidebar = document.getElementById('gemini-highlighter-sidebar');
     if (!sidebar) {
@@ -6,19 +6,27 @@ function toggleSidebar() {
         sidebar.id = 'gemini-highlighter-sidebar';
         sidebar.src = chrome.runtime.getURL('sidebar.html');
         document.body.appendChild(sidebar);
-        
-        // Slight delay to allow DOM insertion before adding the open class for animation
         setTimeout(() => sidebar.classList.add('open'), 50);
     } else {
         sidebar.classList.toggle('open');
     }
 }
 
+// Listen for clicks on the main document to Auto-Close the sidebar
+document.addEventListener('mousedown', async (e) => {
+    const sidebar = document.getElementById('gemini-highlighter-sidebar');
+    if (sidebar && sidebar.classList.contains('open')) {
+        const data = await chrome.storage.local.get(['lastConfig']);
+        // If Pin Sidebar is FALSE, close it when user clicks anywhere on the page
+        if (data.lastConfig && !data.lastConfig.pinSidebar) {
+            sidebar.classList.remove('open');
+        }
+    }
+});
+
 // --- 2. HIGHLIGHTING LOGIC ---
 function hexToRGBA(hex, opacity) {
-    let r = parseInt(hex.slice(1, 3), 16),
-        g = parseInt(hex.slice(3, 5), 16),
-        b = parseInt(hex.slice(5, 7), 16);
+    let r = parseInt(hex.slice(1, 3), 16), g = parseInt(hex.slice(3, 5), 16), b = parseInt(hex.slice(5, 7), 16);
     return `rgba(${r}, ${g}, ${b}, ${opacity})`;
 }
 
@@ -76,14 +84,16 @@ function removeSelectionHighlight() {
     saveHighlightsToStorage();
 }
 
-// --- 3. AGGRESSIVE MEMORY SYSTEM ---
+// --- 3. AGGRESSIVE MEMORY SYSTEM (Fixed Punctuation Bug) ---
 function saveHighlightsToStorage() {
     const highlights = [];
     document.querySelectorAll('.gemini-highlighted-text').forEach(span => {
-        // Save the exact text chunk, avoiding saving massive blank spaces
-        if(span.textContent.trim().length > 0) {
+        const text = span.textContent;
+        // THE FIX: Do not save snippets that are strictly symbols, commas, periods, or spaces.
+        // It MUST contain at least one letter or number to be saved into memory.
+        if (/[a-zA-Z0-9]/.test(text)) {
             highlights.push({
-                text: span.textContent,
+                text: text,
                 color: span.style.backgroundColor
             });
         }
@@ -96,12 +106,10 @@ function applySavedHighlights() {
         const saved = result[window.location.href];
         if (!saved || saved.length === 0) return;
 
-        // Search through meaningful containers
         const containers = document.querySelectorAll('.message-content, p, li, td');
         
         saved.forEach(item => {
             containers.forEach(container => {
-                // If container contains the text and doesn't already have it highlighted
                 if (container.textContent.includes(item.text)) {
                     const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
                     let node;
@@ -125,7 +133,6 @@ function applySavedHighlights() {
     });
 }
 
-// Watchdog Observer
 const observer = new MutationObserver(() => {
     clearTimeout(window.loadTimer);
     window.loadTimer = setTimeout(applySavedHighlights, 800);
