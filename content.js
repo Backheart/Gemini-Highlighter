@@ -1,4 +1,4 @@
-// --- 1. SIDEBAR INJECTION & LOGIC ---
+// --- SIDEBAR LOGIC ---
 function toggleSidebar() {
     let sidebar = document.getElementById('gemini-highlighter-sidebar');
     if (!sidebar) {
@@ -12,19 +12,19 @@ function toggleSidebar() {
     }
 }
 
-// Listen for clicks on the main document to Auto-Close the sidebar
+// Auto-Close Panel Listener
 document.addEventListener('mousedown', async (e) => {
     const sidebar = document.getElementById('gemini-highlighter-sidebar');
     if (sidebar && sidebar.classList.contains('open')) {
         const data = await chrome.storage.local.get(['lastConfig']);
-        // If Pin Sidebar is FALSE, close it when user clicks anywhere on the page
+        // If "Keep Panel Open" is off, slide it back when user clicks the main page
         if (data.lastConfig && !data.lastConfig.pinSidebar) {
             sidebar.classList.remove('open');
         }
     }
 });
 
-// --- 2. HIGHLIGHTING LOGIC ---
+// --- HIGHLIGHT APPLICATION ---
 function hexToRGBA(hex, opacity) {
     let r = parseInt(hex.slice(1, 3), 16), g = parseInt(hex.slice(3, 5), 16), b = parseInt(hex.slice(5, 7), 16);
     return `rgba(${r}, ${g}, ${b}, ${opacity})`;
@@ -84,19 +84,31 @@ function removeSelectionHighlight() {
     saveHighlightsToStorage();
 }
 
-// --- 3. AGGRESSIVE MEMORY SYSTEM (Fixed Punctuation Bug) ---
+// --- NEW EXACT COORDINATE MEMORY SYSTEM ---
+function getHighlightContext(span) {
+    // Find the closest paragraph or container block
+    const parentBlock = span.closest('p, li, h1, h2, h3, h4, th, td, div.message-content');
+    if (!parentBlock) return null;
+
+    // Calculate the exact character index where this highlight starts inside the block
+    const range = document.createRange();
+    range.setStart(parentBlock, 0);
+    range.setEndBefore(span);
+    
+    return {
+        text: span.textContent,
+        color: span.style.backgroundColor,
+        parentText: parentBlock.textContent.trim(), 
+        textOffset: range.toString().length // Exact coordinate
+    };
+}
+
 function saveHighlightsToStorage() {
     const highlights = [];
     document.querySelectorAll('.gemini-highlighted-text').forEach(span => {
-        const text = span.textContent;
-        // THE FIX: Do not save snippets that are strictly symbols, commas, periods, or spaces.
-        // It MUST contain at least one letter or number to be saved into memory.
-        if (/[a-zA-Z0-9]/.test(text)) {
-            highlights.push({
-                text: text,
-                color: span.style.backgroundColor
-            });
-        }
+        if (span.textContent.trim().length === 0) return; 
+        const ctx = getHighlightContext(span);
+        if (ctx) highlights.push(ctx);
     });
     chrome.storage.local.set({ [window.location.href]: highlights });
 }
@@ -106,29 +118,50 @@ function applySavedHighlights() {
         const saved = result[window.location.href];
         if (!saved || saved.length === 0) return;
 
-        const containers = document.querySelectorAll('.message-content, p, li, td');
+        const blocks = document.querySelectorAll('p, li, h1, h2, h3, h4, th, td, div.message-content');
         
         saved.forEach(item => {
-            containers.forEach(container => {
-                if (container.textContent.includes(item.text)) {
-                    const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
+            for (let block of blocks) {
+                // Step 1: Find the exact paragraph
+                if (block.textContent.trim() === item.parentText) {
+                    
+                    const walker = document.createTreeWalker(block, NodeFilter.SHOW_TEXT);
+                    let currentOffset = 0;
                     let node;
+                    let applied = false;
+                    
                     while (node = walker.nextNode()) {
-                        const idx = node.nodeValue.indexOf(item.text);
-                        if (idx !== -1 && !node.parentElement.classList.contains('gemini-highlighted-text')) {
-                            const span = document.createElement('span');
-                            span.className = "gemini-highlighted-text";
-                            span.style.backgroundColor = item.color;
-                            
-                            const part = node.splitText(idx);
-                            part.splitText(item.text.length);
-                            part.parentNode.replaceChild(span, part);
-                            span.appendChild(part);
-                            break; 
+                        // Skip text that is already highlighted
+                        if (node.parentElement.classList.contains('gemini-highlighted-text')) {
+                            currentOffset += node.nodeValue.length;
+                            continue;
                         }
+
+                        const nodeLength = node.nodeValue.length;
+                        
+                        // Step 2: Use the exact coordinate to find the right word
+                        if (item.textOffset >= currentOffset && item.textOffset < currentOffset + nodeLength) {
+                            const relativeOffset = item.textOffset - currentOffset;
+                            
+                            // Step 3: Double check we have the exact right text before wrapping
+                            if (node.nodeValue.substring(relativeOffset, relativeOffset + item.text.length) === item.text) {
+                                const span = document.createElement('span');
+                                span.className = "gemini-highlighted-text";
+                                span.style.backgroundColor = item.color;
+                                
+                                const part = node.splitText(relativeOffset);
+                                part.splitText(item.text.length);
+                                part.parentNode.replaceChild(span, part);
+                                span.appendChild(part);
+                                applied = true;
+                            }
+                            break;
+                        }
+                        currentOffset += nodeLength;
                     }
+                    if (applied) break; 
                 }
-            });
+            }
         });
     });
 }
@@ -139,7 +172,7 @@ const observer = new MutationObserver(() => {
 });
 observer.observe(document.body, { childList: true, subtree: true });
 
-// --- 4. LISTENERS ---
+// --- LISTENERS ---
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.action === "toggleSidebar") toggleSidebar();
     else if (request.action === "applyHighlight") highlightSelection(request.color, request.opacity);
@@ -148,15 +181,37 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         chrome.storage.local.remove(window.location.href);
     } 
     else if (request.action === "clearSelection") removeSelectionHighlight();
-    else if (request.action === "exportHighlights") {
+    else if (request.action === "exportAndCopy") {
+        // Run copy action directly on the main window DOM
         const texts = Array.from(document.querySelectorAll('.gemini-highlighted-text'))
                            .map(span => span.textContent.trim())
                            .filter(text => text.length > 0);
-        sendResponse({ data: texts.join('\n\n') });
+        
+        const finalString = texts.join('\n\n');
+        
+        if (finalString.length === 0) {
+            sendResponse({ success: false });
+            return;
+        }
+
+        const ta = document.createElement('textarea');
+        ta.value = finalString;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        try {
+            document.execCommand('copy');
+            sendResponse({ success: true });
+        } catch (err) {
+            sendResponse({ success: false });
+        } finally {
+            document.body.removeChild(ta);
+        }
     }
 });
 
-// Auto-Highlight Mouse Listener
+// Auto-Highlight
 document.addEventListener('mouseup', () => setTimeout(handleAutoHighlight, 50));
 async function handleAutoHighlight() {
     const data = await chrome.storage.local.get(['lastConfig']);
@@ -164,9 +219,7 @@ async function handleAutoHighlight() {
     if (!config || !config.autoMode) return;
 
     const selection = window.getSelection();
-    const selectedText = selection.toString().trim();
-
-    if (selectedText.length > 5) {
+    if (selection.toString().trim().length > 5) {
         const parent = selection.anchorNode.parentElement;
         if (parent && parent.classList.contains('gemini-highlighted-text')) return;
         highlightSelection(config.color, config.opacity);

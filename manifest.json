@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "Gemini Highlighter Pro",
+  "name": "Highlighter Pro",
   "version": "2.0",
   "description": "Sidebar-based text highlighter for Gemini with Auto-Mode and Export.",
   "permissions": [

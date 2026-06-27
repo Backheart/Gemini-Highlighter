@@ -19,21 +19,21 @@
         transition: transform 0.1s, border-color 0.2s, box-shadow 0.2s; 
     }
     .color-btn:hover { transform: scale(1.05); }
-    /* ACTIVE COLOR STATE */
-    .color-btn.active-color { border-color: #ffffff; box-shadow: 0 0 8px rgba(255,255,255,0.3); transform: scale(1.05); }
+    /* The active color gets a bright white border */
+    .color-btn.active-color { border-color: #ffffff; box-shadow: 0 0 8px rgba(255,255,255,0.4); transform: scale(1.05); }
 
     #blue { background-color: #007bff; }
     #red { background-color: #dc3545; }
     #green { background-color: #28a745; }
 
-    /* Action Buttons with active "click" state */
+    /* Action Buttons */
     .action-btn { 
       width: 100%; margin: 6px 0; padding: 10px; border: none; border-radius: 6px;
       cursor: pointer; font-weight: 600; font-size: 13px; background: var(--card); color: white;
       transition: background 0.1s, transform 0.1s;
     }
     .action-btn:hover { background: #444; }
-    .action-btn:active { transform: scale(0.96); opacity: 0.8; } /* Sinks down when clicked */
+    .action-btn:active { transform: scale(0.95); opacity: 0.8; } /* Button sinks when clicked */
     
     #exportBtn { background: var(--accent); color: white; margin-top: 20px; }
     #exportBtn:hover { background: #357abd; }
@@ -42,7 +42,7 @@
     /* Opacity Controls */
     .opacity-controls { display: flex; gap: 5px; background: var(--card); padding: 4px; border-radius: 8px; }
     .opacity-btn { flex: 1; padding: 8px; border: none; border-radius: 5px; cursor: pointer; background: transparent; color: #888; transition: transform 0.1s; }
-    .opacity-btn.active { background: #555; color: white; }
+    .opacity-btn.active { background: #555; color: white; font-weight: bold; }
     .opacity-btn:active { transform: scale(0.95); }
 
     /* Toggles */
@@ -73,7 +73,7 @@
         <label class="switch"><input type="checkbox" id="autoModeToggle"><span class="slider"></span></label>
     </div>
     <div class="toggle-row">
-        <span class="label-text" title="Keep panel open when clicking away">Pin Sidebar</span>
+        <span class="label-text">Keep Panel Open</span>
         <label class="switch"><input type="checkbox" id="pinSidebarToggle"><span class="slider"></span></label>
     </div>
   </div>
