@@ -6,16 +6,16 @@
     transition: background-color 0.3s ease;
 }
 
-/* Sidebar Styling injected into Gemini */
+/* Sidebar Styling */
 #gemini-highlighter-sidebar {
     position: fixed;
     top: 0;
-    left: -280px; /* Hidden off-screen by default */
+    left: -280px; 
     width: 260px;
     height: 100vh;
     border: none;
     border-right: 1px solid rgba(255,255,255,0.1);
-    z-index: 999999;
+    z-index: 2147483647;
     background: #1e1e1e;
     box-shadow: 5px 0 15px rgba(0,0,0,0.5);
     transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -23,28 +23,28 @@
 }
 
 #gemini-highlighter-sidebar.open {
-    left: 0; /* Slides into view */
+    left: 0;
 }
 
-/* --- NEW MINIMAP STYLES --- */
+/* --- MINIMAP STYLES --- */
 #highlight-minimap-track {
     position: fixed;
     top: 0;
     right: 0;
-    width: 14px; /* Sits right over the scrollbar */
+    width: 14px; 
     height: 100vh;
-    z-index: 2147483647; /* Maximum possible z-index to stay on top */
-    pointer-events: none; /* Let's user click the real scrollbar underneath */
+    z-index: 2147483647; /* Forces it above EVERYTHING */
+    pointer-events: none; 
 }
 
 .highlight-minimap-marker {
     position: absolute;
     right: 2px;
     width: 10px;
-    height: 6px; /* Thick enough to see easily */
+    height: 6px; 
     border-radius: 2px;
     cursor: pointer;
-    pointer-events: auto; /* Makes the color ticks clickable */
+    pointer-events: auto; 
     box-shadow: -1px 1px 3px rgba(0,0,0,0.4);
     transition: transform 0.1s ease, width 0.1s ease;
 }
@@ -53,4 +53,44 @@
     transform: scale(1.2) translateX(-2px);
     width: 14px;
     z-index: 10;
+}
+
+/* --- THE NEW HOVER TOOLTIP --- */
+.minimap-tooltip {
+    position: absolute;
+    right: 20px; /* Pushes it slightly left of the scrollbar */
+    top: -10px;
+    background: #ffffff;
+    color: #000000;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 600;
+    font-family: sans-serif;
+    white-space: nowrap;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+    border: 1px solid #ddd;
+    transform: translateX(10px); /* Starts slightly offset for animation */
+}
+
+/* Triangle pointer for the tooltip */
+.minimap-tooltip::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    right: -5px;
+    transform: translateY(-50%);
+    border-width: 5px 0 5px 5px;
+    border-style: solid;
+    border-color: transparent transparent transparent #ffffff;
+}
+
+.highlight-minimap-marker:hover .minimap-tooltip {
+    opacity: 1;
+    visibility: visible;
+    transform: translateX(0); /* Slides in */
 }

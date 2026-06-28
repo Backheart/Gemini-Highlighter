@@ -21,7 +21,7 @@ document.addEventListener('mousedown', async (e) => {
                 sidebar.classList.remove('open');
             }
         }
-    } catch (err) { /* Catch invalidated context error safely */ }
+    } catch (err) {}
 });
 
 // --- HIGHLIGHT APPLICATION ---
@@ -116,9 +116,7 @@ function saveHighlightsToStorage() {
             if (ctx) highlights.push(ctx);
         });
         chrome.storage.local.set({ [window.location.href]: highlights });
-    } catch (err) {
-        console.warn("Highlighter Pro: Extension was updated. Please refresh the page (F5) to save highlights.");
-    }
+    } catch (err) {}
 }
 
 function applySavedHighlights() {
@@ -127,7 +125,7 @@ function applySavedHighlights() {
             const saved = result[window.location.href];
             if (!saved || saved.length === 0) return;
 
-            const blocks = document.querySelectorAll('p, li, h1, h2, h3, h4, th, td, article, section, div.message-content, div.prose');
+            const blocks = document.querySelectorAll(UNIVERSAL_CONTAINERS);
             
             saved.forEach(item => {
                 for (let block of blocks) {
@@ -172,46 +170,30 @@ function applySavedHighlights() {
     } catch (err) {}
 }
 
-// Throttled Observer: Runs less often so it doesn't lag Gemini while it is typing
 let observerTimer = null;
 const observer = new MutationObserver(() => {
     if (observerTimer) clearTimeout(observerTimer);
     observerTimer = setTimeout(() => {
         applySavedHighlights();
         updateHighlightMap(); 
-    }, 1200); // 1.2 second delay keeps performance high
+    }, 1200); 
 });
 observer.observe(document.body, { childList: true, subtree: true });
 
 
-// --- SMART HIGHLIGHT MINIMAP ENGINE ---
-let cachedScrollContainer = null;
+// --- NEW BULLETPROOF MINIMAP ENGINE ---
 
-function getMainScrollContainer() {
-    if (cachedScrollContainer && cachedScrollContainer.isConnected) return cachedScrollContainer;
-    
-    // Default to the main window if it's a normal website (like Wikipedia)
-    if (document.documentElement.scrollHeight > window.innerHeight + 10) {
-        cachedScrollContainer = document.documentElement;
-        return cachedScrollContainer;
+// Climbs the HTML tree to find the EXACT box that is scrolling the text
+function getScrollParent(node) {
+    if (node == null || node === document.body || node === document.documentElement) {
+        return document.documentElement;
     }
-
-    // If it's a Single Page App (like Gemini), find the inner scrolling div
-    let maxScroll = 0;
-    let bestMatch = document.documentElement;
-    const containers = document.querySelectorAll('div, main, section');
-    
-    for (let el of containers) {
-        if (el.scrollHeight > el.clientHeight) {
-            const style = window.getComputedStyle(el);
-            if ((style.overflowY === 'auto' || style.overflowY === 'scroll') && el.scrollHeight > maxScroll) {
-                maxScroll = el.scrollHeight;
-                bestMatch = el;
-            }
-        }
+    const style = window.getComputedStyle(node);
+    if (node.scrollHeight > node.clientHeight && 
+        (style.overflowY === 'auto' || style.overflowY === 'scroll' || style.overflow === 'auto' || style.overflowY === 'overlay')) {
+        return node;
     }
-    cachedScrollContainer = bestMatch;
-    return bestMatch;
+    return getScrollParent(node.parentNode);
 }
 
 function updateHighlightMap() {
@@ -220,24 +202,37 @@ function updateHighlightMap() {
     if (!mapTrack) {
         mapTrack = document.createElement('div');
         mapTrack.id = 'highlight-minimap-track';
-        document.body.appendChild(mapTrack);
+        document.documentElement.appendChild(mapTrack);
     }
     
     mapTrack.innerHTML = ''; 
-    const spans = document.querySelectorAll('.gemini-highlighted-text');
+    const spans = Array.from(document.querySelectorAll('.gemini-highlighted-text'));
     if (spans.length === 0) return;
 
-    // Get the exact element that is scrolling (Gemini inner box vs Wikipedia main body)
-    const scrollContainer = getMainScrollContainer();
-    const totalHeight = scrollContainer.scrollHeight;
-    const containerRect = scrollContainer.getBoundingClientRect();
-    const isWindowScroll = (scrollContainer === document.documentElement);
+    // 1. Find exactly what is scrolling based on the first highlight
+    const scrollContainer = getScrollParent(spans[0]);
+    const isWindowScroll = (scrollContainer === document.documentElement || scrollContainer === document.body);
     
+    // 2. Lock the track EXACTLY to the height and position of the scrolling box
+    let containerRect;
+    if (isWindowScroll) {
+        containerRect = { top: 0, height: window.innerHeight };
+        mapTrack.style.top = '0px';
+        mapTrack.style.height = '100vh';
+    } else {
+        containerRect = scrollContainer.getBoundingClientRect();
+        mapTrack.style.top = `${containerRect.top}px`;
+        mapTrack.style.height = `${containerRect.height}px`;
+    }
+
+    const totalHeight = scrollContainer.scrollHeight;
+    let markersData = [];
+
+    // 3. Map absolute positions precisely within the scrolling box
     spans.forEach(span => {
         const rect = span.getBoundingClientRect();
         if (rect.height === 0 && rect.width === 0) return; 
 
-        // Smart Coordinate Math
         let absoluteTop;
         if (isWindowScroll) {
             absoluteTop = rect.top + window.scrollY;
@@ -245,18 +240,53 @@ function updateHighlightMap() {
             absoluteTop = (rect.top - containerRect.top) + scrollContainer.scrollTop;
         }
 
-        const percentage = (absoluteTop / totalHeight) * 100;
+        markersData.push({
+            top: absoluteTop,
+            percentage: (absoluteTop / totalHeight) * 100,
+            color: span.style.backgroundColor,
+            text: span.textContent.trim(),
+            targetTop: absoluteTop
+        });
+    });
+
+    // 4. Group markers that are close together
+    markersData.sort((a, b) => a.top - b.top);
+    let groupedMarkers = [];
+    
+    if (markersData.length > 0) {
+        let currentGroup = markersData[0];
         
+        for (let i = 1; i < markersData.length; i++) {
+            const marker = markersData[i];
+            if (Math.abs(marker.top - currentGroup.top) < 40) {
+                currentGroup.text += " " + marker.text; 
+            } else {
+                groupedMarkers.push(currentGroup);
+                currentGroup = marker;
+            }
+        }
+        groupedMarkers.push(currentGroup);
+    }
+
+    // 5. Draw the Markers and Tooltips
+    groupedMarkers.forEach(group => {
         const marker = document.createElement('div');
         marker.className = 'highlight-minimap-marker';
-        marker.style.top = `${percentage}%`;
-        marker.style.backgroundColor = span.style.backgroundColor;
+        marker.style.top = `${group.percentage}%`;
+        marker.style.backgroundColor = group.color;
+        
+        const tooltip = document.createElement('div');
+        tooltip.className = 'minimap-tooltip';
+        const words = group.text.replace(/\s+/g, ' ').split(' ');
+        const snippet = words.slice(0, 3).join(' ') + (words.length > 3 ? '...' : '');
+        tooltip.textContent = snippet;
+        marker.appendChild(tooltip);
         
         marker.addEventListener('click', () => {
             if (isWindowScroll) {
-                window.scrollTo({ top: absoluteTop - 80, behavior: 'smooth' });
+                window.scrollTo({ top: group.targetTop - 80, behavior: 'smooth' });
             } else {
-                scrollContainer.scrollTo({ top: absoluteTop - 80, behavior: 'smooth' });
+                scrollContainer.scrollTo({ top: group.targetTop - 80, behavior: 'smooth' });
             }
         });
         
@@ -264,11 +294,7 @@ function updateHighlightMap() {
     });
 }
 
-// Listen to scrolls inside Gemini's box to keep track updated if layout changes
-window.addEventListener('resize', () => {
-    cachedScrollContainer = null; // reset cache on resize
-    updateHighlightMap();
-});
+window.addEventListener('resize', updateHighlightMap);
 
 
 // --- LISTENERS ---
@@ -319,7 +345,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     }
 });
 
-// Auto-Highlight
 document.addEventListener('mouseup', () => setTimeout(handleAutoHighlight, 50));
 async function handleAutoHighlight() {
     try {
