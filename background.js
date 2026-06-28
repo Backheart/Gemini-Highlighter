@@ -5,6 +5,7 @@ chrome.action.onClicked.addListener((tab) => {
 
 // Create Right-Click Context Menus
 chrome.runtime.onInstalled.addListener(() => {
+    chrome.contextMenus.create({ id: "hl-yellow", title: "Highlight Yellow", contexts: ["selection"] });
     chrome.contextMenus.create({ id: "hl-blue", title: "Highlight Blue", contexts: ["selection"] });
     chrome.contextMenus.create({ id: "hl-red", title: "Highlight Red", contexts: ["selection"] });
     chrome.contextMenus.create({ id: "hl-green", title: "Highlight Green", contexts: ["selection"] });
@@ -15,6 +16,7 @@ chrome.runtime.onInstalled.addListener(() => {
 // Handle Right-Click Actions
 chrome.contextMenus.onClicked.addListener((info, tab) => {
     const actionMap = {
+        "hl-yellow": { action: "applyHighlight", color: "#ffc107", opacity: "0.4" },
         "hl-blue": { action: "applyHighlight", color: "#007bff", opacity: "0.4" },
         "hl-red": { action: "applyHighlight", color: "#dc3545", opacity: "0.4" },
         "hl-green": { action: "applyHighlight", color: "#28a745", opacity: "0.4" },

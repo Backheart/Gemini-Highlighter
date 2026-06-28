@@ -1,4 +1,4 @@
-let config = { color: "#007bff", opacity: "1.0", autoMode: false, pinSidebar: false };
+let config = { color: "#ffc107", opacity: "1.0", autoMode: false, pinSidebar: false };
 
 function updateUI() {
     document.getElementById('autoModeToggle').checked = config.autoMode;
@@ -24,7 +24,6 @@ function saveConfig() {
 
 document.getElementById('autoModeToggle').addEventListener('change', (e) => { config.autoMode = e.target.checked; saveConfig(); });
 document.getElementById('pinSidebarToggle').addEventListener('change', (e) => { config.pinSidebar = e.target.checked; saveConfig(); });
-
 document.getElementById('lowOpacity').addEventListener('click', () => { config.opacity = "0.4"; saveConfig(); });
 document.getElementById('defaultOpacity').addEventListener('click', () => { config.opacity = "1.0"; saveConfig(); });
 
@@ -45,18 +44,14 @@ document.getElementById('clear').addEventListener('click', () => {
     chrome.tabs.query({ active: true, currentWindow: true }, tabs => chrome.tabs.sendMessage(tabs[0].id, { action: "clearHighlights" }));
 });
 
-// FOOLPROOF EXPORT
 document.getElementById('exportBtn').addEventListener('click', () => {
     const btn = document.getElementById('exportBtn');
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-        // We tell content.js to do the copying itself on the main window
         chrome.tabs.sendMessage(tabs[0].id, { action: "exportAndCopy" }, (response) => {
             if (response && response.success) {
-                btn.innerText = "Copied!";
-                setTimeout(() => btn.innerText = "Export to Clipboard", 2000);
+                btn.innerText = "Copied!"; setTimeout(() => btn.innerText = "Export to Clipboard", 2000);
             } else {
-                btn.innerText = "Nothing to export";
-                setTimeout(() => btn.innerText = "Export to Clipboard", 2000);
+                btn.innerText = "Nothing to export"; setTimeout(() => btn.innerText = "Export to Clipboard", 2000);
             }
         });
     });

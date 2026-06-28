@@ -1,16 +1,17 @@
 {
   "manifest_version": 3,
-  "name": "Highlighter Pro",
-  "version": "2.0",
-  "description": "Sidebar-based text highlighter for Gemini with Auto-Mode and Export.",
+  "name": "Highlighter Pro: Web",
+  "version": "3.1",
+  "description": "Highlight, save, and map text across the web.",
   "permissions": [
     "storage",
     "activeTab",
     "scripting",
-    "contextMenus"
+    "contextMenus",
+    "unlimitedStorage"
   ],
   "host_permissions": [
-    "*://gemini.google.com/*"
+    "<all_urls>"
   ],
   "background": {
     "service_worker": "background.js"
@@ -20,7 +21,7 @@
   },
   "content_scripts": [
     {
-      "matches": ["*://gemini.google.com/*"],
+      "matches": ["<all_urls>"],
       "js": ["content.js"],
       "css": ["content.css"]
     }
@@ -28,7 +29,7 @@
   "web_accessible_resources": [
     {
       "resources": ["sidebar.html", "sidebar.js"],
-      "matches": ["*://gemini.google.com/*"]
+      "matches": ["<all_urls>"]
     }
   ],
   "icons": {

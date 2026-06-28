@@ -25,3 +25,32 @@
 #gemini-highlighter-sidebar.open {
     left: 0; /* Slides into view */
 }
+
+/* --- NEW MINIMAP STYLES --- */
+#highlight-minimap-track {
+    position: fixed;
+    top: 0;
+    right: 0;
+    width: 14px; /* Sits right over the scrollbar */
+    height: 100vh;
+    z-index: 2147483647; /* Maximum possible z-index to stay on top */
+    pointer-events: none; /* Let's user click the real scrollbar underneath */
+}
+
+.highlight-minimap-marker {
+    position: absolute;
+    right: 2px;
+    width: 10px;
+    height: 6px; /* Thick enough to see easily */
+    border-radius: 2px;
+    cursor: pointer;
+    pointer-events: auto; /* Makes the color ticks clickable */
+    box-shadow: -1px 1px 3px rgba(0,0,0,0.4);
+    transition: transform 0.1s ease, width 0.1s ease;
+}
+
+.highlight-minimap-marker:hover {
+    transform: scale(1.2) translateX(-2px);
+    width: 14px;
+    z-index: 10;
+}
