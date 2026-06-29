@@ -1,8 +1,10 @@
-let config = { color: "#ffc107", opacity: "1.0", autoMode: false, pinSidebar: false };
+// Added showMinimap to config (default true)
+let config = { color: "#ffc107", opacity: "1.0", autoMode: false, pinSidebar: false, showMinimap: true };
 
 function updateUI() {
     document.getElementById('autoModeToggle').checked = config.autoMode;
     document.getElementById('pinSidebarToggle').checked = config.pinSidebar;
+    document.getElementById('minimapToggle').checked = config.showMinimap;
     
     document.querySelectorAll('.opacity-btn').forEach(btn => btn.classList.remove('active'));
     document.getElementById(config.opacity === "1.0" ? 'defaultOpacity' : 'lowOpacity').classList.add('active');
@@ -24,6 +26,8 @@ function saveConfig() {
 
 document.getElementById('autoModeToggle').addEventListener('change', (e) => { config.autoMode = e.target.checked; saveConfig(); });
 document.getElementById('pinSidebarToggle').addEventListener('change', (e) => { config.pinSidebar = e.target.checked; saveConfig(); });
+document.getElementById('minimapToggle').addEventListener('change', (e) => { config.showMinimap = e.target.checked; saveConfig(); });
+
 document.getElementById('lowOpacity').addEventListener('click', () => { config.opacity = "0.4"; saveConfig(); });
 document.getElementById('defaultOpacity').addEventListener('click', () => { config.opacity = "1.0"; saveConfig(); });
 

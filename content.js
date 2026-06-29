@@ -1,3 +1,21 @@
+// --- LIVE CONFIG CACHE (Massive Performance Boost) ---
+let localConfig = { autoMode: false, pinSidebar: false, showMinimap: true, color: "#ffc107", opacity: "1.0" };
+
+// Load initial config
+chrome.storage.local.get(['lastConfig'], (res) => {
+    if (res.lastConfig) localConfig = { ...localConfig, ...res.lastConfig };
+    updateHighlightMap(); // Draw map on load based on settings
+});
+
+// Automatically update local memory the millisecond a button is clicked in the popup
+chrome.storage.onChanged.addListener((changes) => {
+    if (changes.lastConfig) {
+        localConfig = changes.lastConfig.newValue;
+        updateHighlightMap(); // Instantly hide/show minimap if toggled
+    }
+});
+
+
 // --- SIDEBAR LOGIC ---
 function toggleSidebar() {
     let sidebar = document.getElementById('gemini-highlighter-sidebar');
@@ -12,14 +30,11 @@ function toggleSidebar() {
     }
 }
 
-document.addEventListener('mousedown', async (e) => {
+document.addEventListener('mousedown', (e) => {
     try {
         const sidebar = document.getElementById('gemini-highlighter-sidebar');
-        if (sidebar && sidebar.classList.contains('open')) {
-            const data = await chrome.storage.local.get(['lastConfig']);
-            if (data.lastConfig && !data.lastConfig.pinSidebar) {
-                sidebar.classList.remove('open');
-            }
+        if (sidebar && sidebar.classList.contains('open') && !localConfig.pinSidebar) {
+            sidebar.classList.remove('open');
         }
     } catch (err) {}
 });
@@ -30,20 +45,26 @@ function hexToRGBA(hex, opacity) {
     return `rgba(${r}, ${g}, ${b}, ${opacity})`;
 }
 
-async function highlightSelection(color, opacity) {
+function highlightSelection(color, opacity) {
     const selection = window.getSelection();
     if (!selection || selection.isCollapsed) return;
 
     const range = selection.getRangeAt(0);
     const rgbaColor = hexToRGBA(color, opacity);
 
-    const treeWalker = document.createTreeWalker(
-        range.commonAncestorContainer, NodeFilter.SHOW_TEXT,
-        { acceptNode: (node) => range.intersectsNode(node) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT }
-    );
-
     const nodes = [];
-    while (treeWalker.nextNode()) nodes.push(treeWalker.currentNode);
+    
+    // THE FIX: If the user selected pure text without bolding/links, directly target the text node.
+    if (range.commonAncestorContainer.nodeType === Node.TEXT_NODE) {
+        nodes.push(range.commonAncestorContainer);
+    } else {
+        // Otherwise, climb the HTML tree normally
+        const treeWalker = document.createTreeWalker(
+            range.commonAncestorContainer, NodeFilter.SHOW_TEXT,
+            { acceptNode: (node) => range.intersectsNode(node) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT }
+        );
+        while (treeWalker.nextNode()) nodes.push(treeWalker.currentNode);
+    }
 
     nodes.forEach(node => {
         const start = node === range.startContainer ? range.startOffset : 0;
@@ -181,13 +202,11 @@ const observer = new MutationObserver(() => {
 observer.observe(document.body, { childList: true, subtree: true });
 
 
-// --- NEW BULLETPROOF MINIMAP ENGINE ---
+// --- SMART HIGHLIGHT MINIMAP ENGINE ---
+let cachedScrollContainer = null;
 
-// Climbs the HTML tree to find the EXACT box that is scrolling the text
 function getScrollParent(node) {
-    if (node == null || node === document.body || node === document.documentElement) {
-        return document.documentElement;
-    }
+    if (node == null || node === document.body || node === document.documentElement) return document.documentElement;
     const style = window.getComputedStyle(node);
     if (node.scrollHeight > node.clientHeight && 
         (style.overflowY === 'auto' || style.overflowY === 'scroll' || style.overflow === 'auto' || style.overflowY === 'overlay')) {
@@ -206,14 +225,21 @@ function updateHighlightMap() {
     }
     
     mapTrack.innerHTML = ''; 
+
+    // THE FIX: Check user's setting. Hide map entirely if toggled off.
+    if (!localConfig.showMinimap) {
+        mapTrack.style.display = 'none';
+        return; 
+    } else {
+        mapTrack.style.display = 'block';
+    }
+
     const spans = Array.from(document.querySelectorAll('.gemini-highlighted-text'));
     if (spans.length === 0) return;
 
-    // 1. Find exactly what is scrolling based on the first highlight
     const scrollContainer = getScrollParent(spans[0]);
     const isWindowScroll = (scrollContainer === document.documentElement || scrollContainer === document.body);
     
-    // 2. Lock the track EXACTLY to the height and position of the scrolling box
     let containerRect;
     if (isWindowScroll) {
         containerRect = { top: 0, height: window.innerHeight };
@@ -228,7 +254,6 @@ function updateHighlightMap() {
     const totalHeight = scrollContainer.scrollHeight;
     let markersData = [];
 
-    // 3. Map absolute positions precisely within the scrolling box
     spans.forEach(span => {
         const rect = span.getBoundingClientRect();
         if (rect.height === 0 && rect.width === 0) return; 
@@ -249,13 +274,11 @@ function updateHighlightMap() {
         });
     });
 
-    // 4. Group markers that are close together
     markersData.sort((a, b) => a.top - b.top);
     let groupedMarkers = [];
     
     if (markersData.length > 0) {
         let currentGroup = markersData[0];
-        
         for (let i = 1; i < markersData.length; i++) {
             const marker = markersData[i];
             if (Math.abs(marker.top - currentGroup.top) < 40) {
@@ -268,7 +291,6 @@ function updateHighlightMap() {
         groupedMarkers.push(currentGroup);
     }
 
-    // 5. Draw the Markers and Tooltips
     groupedMarkers.forEach(group => {
         const marker = document.createElement('div');
         marker.className = 'highlight-minimap-marker';
@@ -295,7 +317,6 @@ function updateHighlightMap() {
 }
 
 window.addEventListener('resize', updateHighlightMap);
-
 
 // --- LISTENERS ---
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
@@ -345,18 +366,17 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     }
 });
 
+// Auto-Highlight (Now completely synchronous and fast!)
 document.addEventListener('mouseup', () => setTimeout(handleAutoHighlight, 50));
-async function handleAutoHighlight() {
+function handleAutoHighlight() {
     try {
-        const data = await chrome.storage.local.get(['lastConfig']);
-        const config = data.lastConfig;
-        if (!config || !config.autoMode) return;
+        if (!localConfig.autoMode) return;
 
         const selection = window.getSelection();
         if (selection.toString().trim().length > 5) {
             const parent = selection.anchorNode.parentElement;
             if (parent && parent.classList.contains('gemini-highlighted-text')) return;
-            highlightSelection(config.color, config.opacity);
+            highlightSelection(localConfig.color, localConfig.opacity);
         }
     } catch (e) {}
 }
