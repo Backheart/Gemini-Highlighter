@@ -20,7 +20,7 @@ function updateUI() {
         stBtn.style.borderColor = '#555';
     }
 
-    // Update Colors
+    // Update Colors & Picker state
     let isCustomColor = true;
     document.querySelectorAll('.preset-color').forEach(btn => {
         const isMatch = btn.getAttribute('data-color') === config.color;
@@ -28,13 +28,12 @@ function updateUI() {
         if (isMatch) isCustomColor = false;
     });
 
-    // Custom Color Picker UI
     const picker = document.getElementById('customColorPicker');
     if (isCustomColor && config.color !== 'transparent') {
         picker.value = config.color;
-        picker.classList.add('active-color');
+        picker.classList.add('active-picker');
     } else {
-        picker.classList.remove('active-color');
+        picker.classList.remove('active-picker');
     }
 }
 
@@ -55,13 +54,10 @@ document.getElementById('minimapToggle').addEventListener('change', (e) => { con
 document.getElementById('lowOpacity').addEventListener('click', () => { config.opacity = "0.4"; saveConfig(); });
 document.getElementById('defaultOpacity').addEventListener('click', () => { config.opacity = "1.0"; saveConfig(); });
 
-// Strikethrough Toggle
 document.getElementById('strikethroughToggleBtn').addEventListener('click', () => {
-    config.strikethrough = !config.strikethrough;
-    saveConfig();
+    config.strikethrough = !config.strikethrough; saveConfig();
 });
 
-// Presets
 document.querySelectorAll('.preset-color').forEach(button => {
     button.addEventListener('click', () => {
         config.color = button.getAttribute('data-color');
@@ -70,8 +66,8 @@ document.querySelectorAll('.preset-color').forEach(button => {
     });
 });
 
-// Custom Color Picker listener
-document.getElementById('customColorPicker').addEventListener('change', (e) => {
+// Using 'input' makes it apply live while dragging the color slider!
+document.getElementById('customColorPicker').addEventListener('input', (e) => {
     config.color = e.target.value;
     saveConfig();
     triggerManualHighlight();

@@ -11,6 +11,16 @@ chrome.storage.onChanged.addListener((changes) => {
     }
 });
 
+// --- SELECTION MEMORY ENGINE ---
+// This guarantees we don't lose the selection when clicking inside the sidebar!
+let lastSelectionRange = null;
+document.addEventListener('selectionchange', () => {
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount > 0 && !sel.isCollapsed) {
+        lastSelectionRange = sel.getRangeAt(0).cloneRange();
+    }
+});
+
 function toggleSidebar() {
     let sidebar = document.getElementById('gemini-highlighter-sidebar');
     if (!sidebar) {
@@ -31,18 +41,12 @@ document.addEventListener('mousedown', (e) => {
     } catch (err) {}
 });
 
-// --- SMART CONTRAST ALGORITHM ---
 function getTextColorForBackground(hexColor, opacity) {
     if (hexColor === 'transparent') return 'inherit';
-    if (parseFloat(opacity) < 0.6) return 'inherit'; // Light opacity won't hide text
-    
-    // Convert hex to RGB and check YIQ luminance
-    let r = parseInt(hexColor.slice(1, 3), 16);
-    let g = parseInt(hexColor.slice(3, 5), 16);
-    let b = parseInt(hexColor.slice(5, 7), 16);
+    if (parseFloat(opacity) < 0.6) return 'inherit'; 
+    let r = parseInt(hexColor.slice(1, 3), 16), g = parseInt(hexColor.slice(3, 5), 16), b = parseInt(hexColor.slice(5, 7), 16);
     let yiq = ((r * 299) + (g * 587) + (b * 114)) / 1000;
-    
-    return (yiq >= 128) ? '#000000' : '#ffffff'; // Dark text for bright colors, White for dark colors!
+    return (yiq >= 128) ? '#000000' : '#ffffff'; 
 }
 
 function hexToRGBA(hex, opacity) {
@@ -52,12 +56,23 @@ function hexToRGBA(hex, opacity) {
 }
 
 function highlightSelection(color, opacity, isStrikethrough = localConfig.strikethrough) {
-    const selection = window.getSelection();
-    if (!selection || selection.isCollapsed) return;
+    let range;
+    const sel = window.getSelection();
+    
+    // Check if we have an active selection, otherwise use our Memory Selection!
+    if (sel && sel.rangeCount > 0 && !sel.isCollapsed) {
+        range = sel.getRangeAt(0);
+    } else if (lastSelectionRange) {
+        range = lastSelectionRange;
+    } else {
+        return;
+    }
 
-    const range = selection.getRangeAt(0);
     const rgbaColor = hexToRGBA(color, opacity);
     const dynamicTextColor = getTextColorForBackground(color, opacity);
+    
+    // Generate a unique ID to group this block of highlights together
+    const highlightId = Date.now().toString() + Math.random().toString(36).substr(2, 5);
 
     const nodes = [];
     if (range.commonAncestorContainer.nodeType === Node.TEXT_NODE) {
@@ -76,8 +91,9 @@ function highlightSelection(color, opacity, isStrikethrough = localConfig.strike
         if (start < end && node.nodeValue.trim() !== "") {
             const span = document.createElement('span');
             span.className = "gemini-highlighted-text";
+            span.setAttribute('data-highlight-id', highlightId); // Stamp the ID
             span.style.backgroundColor = rgbaColor;
-            span.style.color = dynamicTextColor; // Applies the smart contrast!
+            span.style.color = dynamicTextColor; 
             span.style.display = "inline"; 
             if (isStrikethrough) span.style.textDecoration = "line-through";
             
@@ -88,7 +104,8 @@ function highlightSelection(color, opacity, isStrikethrough = localConfig.strike
         }
     });
     
-    selection.removeAllRanges();
+    if(sel) sel.removeAllRanges();
+    lastSelectionRange = null; // Clear memory
     saveHighlightsToStorage();
     updateHighlightMap();
 }
@@ -105,7 +122,6 @@ document.addEventListener('mouseover', (e) => {
         activeHoverSpan = e.target;
         const rect = activeHoverSpan.getBoundingClientRect();
         hoverDeleteBtn.style.display = 'flex';
-        // Anchor the 'X' to the top right of the highlight
         hoverDeleteBtn.style.top = `${rect.top + window.scrollY - 8}px`;
         hoverDeleteBtn.style.left = `${rect.right + window.scrollX - 8}px`;
     } else if (e.target !== hoverDeleteBtn) {
@@ -114,13 +130,28 @@ document.addEventListener('mouseover', (e) => {
     }
 });
 
-// Delete specific highlight when X is clicked
+// Group Deletion Logic
 hoverDeleteBtn.addEventListener('click', () => {
     if (activeHoverSpan) {
-        const parent = activeHoverSpan.parentNode;
-        while (activeHoverSpan.firstChild) parent.insertBefore(activeHoverSpan.firstChild, activeHoverSpan);
-        activeHoverSpan.remove();
-        parent.normalize();
+        const id = activeHoverSpan.getAttribute('data-highlight-id');
+        
+        // Find ALL spans that were created in that exact same highlight action
+        if (id) {
+            const groupSpans = document.querySelectorAll(`.gemini-highlighted-text[data-highlight-id="${id}"]`);
+            groupSpans.forEach(s => {
+                const parent = s.parentNode;
+                while (s.firstChild) parent.insertBefore(s.firstChild, s);
+                s.remove();
+                parent.normalize();
+            });
+        } else {
+            // Fallback for old saved highlights without IDs
+            const parent = activeHoverSpan.parentNode;
+            while (activeHoverSpan.firstChild) parent.insertBefore(activeHoverSpan.firstChild, activeHoverSpan);
+            activeHoverSpan.remove();
+            parent.normalize();
+        }
+
         saveHighlightsToStorage();
         updateHighlightMap();
         hoverDeleteBtn.style.display = 'none';
@@ -149,16 +180,22 @@ function getHighlightContext(span) {
     if (!parentBlock) parentBlock = span.parentElement;
     if (!parentBlock) return null;
 
+    // THE FIX: Save the exact Index of the block so Identical text (Lorem Ipsum) doesn't get confused
+    const blocks = Array.from(document.querySelectorAll(UNIVERSAL_CONTAINERS));
+    const blockIndex = blocks.indexOf(parentBlock);
+
     const range = document.createRange();
     range.setStart(parentBlock, 0); range.setEndBefore(span);
     
     return {
         text: span.textContent,
         color: span.style.backgroundColor,
-        textColor: span.style.color, // Memory must remember contrast color
-        isStrikethrough: span.style.textDecoration.includes('line-through'), // Memory remembers strikethrough
+        textColor: span.style.color, 
+        isStrikethrough: span.style.textDecoration.includes('line-through'), 
+        highlightId: span.getAttribute('data-highlight-id') || Date.now().toString(), // Save the ID Group
         parentText: parentBlock.textContent.trim(), 
-        textOffset: range.toString().length 
+        textOffset: range.toString().length,
+        blockIndex: blockIndex
     };
 }
 
@@ -183,39 +220,55 @@ function applySavedHighlights() {
             const blocks = document.querySelectorAll(UNIVERSAL_CONTAINERS);
             
             saved.forEach(item => {
-                for (let block of blocks) {
-                    if (block.textContent.trim() === item.parentText) {
-                        const walker = document.createTreeWalker(block, NodeFilter.SHOW_TEXT);
-                        let currentOffset = 0; let node; let applied = false;
-                        
-                        while (node = walker.nextNode()) {
-                            if (node.parentElement.classList.contains('gemini-highlighted-text')) {
-                                currentOffset += node.nodeValue.length; continue;
-                            }
-                            const nodeLength = node.nodeValue.length;
-                            if (item.textOffset >= currentOffset && item.textOffset < currentOffset + nodeLength) {
-                                const relativeOffset = item.textOffset - currentOffset;
-                                if (node.nodeValue.substring(relativeOffset, relativeOffset + item.text.length) === item.text) {
-                                    const span = document.createElement('span');
-                                    span.className = "gemini-highlighted-text";
-                                    span.style.backgroundColor = item.color;
-                                    span.style.display = "inline";
-                                    
-                                    // Apply saved text styles
-                                    if (item.textColor) span.style.color = item.textColor;
-                                    if (item.isStrikethrough) span.style.textDecoration = 'line-through';
-                                    
-                                    const part = node.splitText(relativeOffset);
-                                    part.splitText(item.text.length);
-                                    part.parentNode.replaceChild(span, part);
-                                    span.appendChild(part);
-                                    applied = true;
-                                }
-                                break;
-                            }
-                            currentOffset += nodeLength;
+                let targetBlock = null;
+
+                // Priority 1: Exact Block Index match (Fixes Lorem Ipsum bug)
+                if (item.blockIndex !== undefined && blocks[item.blockIndex]) {
+                    if (blocks[item.blockIndex].textContent.trim() === item.parentText) {
+                        targetBlock = blocks[item.blockIndex];
+                    }
+                }
+                
+                // Priority 2: Fallback search if the webpage shifted dynamically
+                if (!targetBlock) {
+                    for (let block of blocks) {
+                        if (block.textContent.trim() === item.parentText) {
+                            targetBlock = block; break;
                         }
-                        if (applied) break; 
+                    }
+                }
+
+                if (targetBlock) {
+                    const walker = document.createTreeWalker(targetBlock, NodeFilter.SHOW_TEXT);
+                    let currentOffset = 0; let node; let applied = false;
+                    
+                    while (node = walker.nextNode()) {
+                        if (node.parentElement.classList.contains('gemini-highlighted-text')) {
+                            currentOffset += node.nodeValue.length; continue;
+                        }
+                        const nodeLength = node.nodeValue.length;
+                        if (item.textOffset >= currentOffset && item.textOffset < currentOffset + nodeLength) {
+                            const relativeOffset = item.textOffset - currentOffset;
+                            if (node.nodeValue.substring(relativeOffset, relativeOffset + item.text.length) === item.text) {
+                                const span = document.createElement('span');
+                                span.className = "gemini-highlighted-text";
+                                span.style.backgroundColor = item.color;
+                                span.style.display = "inline";
+                                
+                                // Restore all properties
+                                span.setAttribute('data-highlight-id', item.highlightId);
+                                if (item.textColor) span.style.color = item.textColor;
+                                if (item.isStrikethrough) span.style.textDecoration = 'line-through';
+                                
+                                const part = node.splitText(relativeOffset);
+                                part.splitText(item.text.length);
+                                part.parentNode.replaceChild(span, part);
+                                span.appendChild(part);
+                                applied = true;
+                            }
+                            break;
+                        }
+                        currentOffset += nodeLength;
                     }
                 }
             });
@@ -300,9 +353,10 @@ function updateHighlightMap() {
         const snippet = words.slice(0, 3).join(' ') + (words.length > 3 ? '...' : '');
         tooltip.textContent = snippet; marker.appendChild(tooltip);
         
+        // THE FIX: Increased offset to -150 to leave breathing room at top of page!
         marker.addEventListener('click', () => {
-            if (isWindowScroll) window.scrollTo({ top: group.targetTop - 80, behavior: 'smooth' });
-            else scrollContainer.scrollTo({ top: group.targetTop - 80, behavior: 'smooth' });
+            if (isWindowScroll) window.scrollTo({ top: group.targetTop - 150, behavior: 'smooth' });
+            else scrollContainer.scrollTo({ top: group.targetTop - 150, behavior: 'smooth' });
         });
         mapTrack.appendChild(marker);
     });
@@ -312,9 +366,12 @@ window.addEventListener('resize', updateHighlightMap);
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.action === "toggleSidebar") toggleSidebar();
     else if (request.action === "applyHighlight") {
-        // We accept overrides from Context Menu (like right-click Strikethrough)
+        // ALWAYS obey the user's intensity/opacity toggle, override right-click values!
+        const opacityToUse = localConfig.opacity;
+        const colorToUse = request.color || localConfig.color;
         const isStrike = request.strikethrough !== undefined ? request.strikethrough : localConfig.strikethrough;
-        highlightSelection(request.color, request.opacity, isStrike);
+        
+        highlightSelection(colorToUse, opacityToUse, isStrike);
     }
     else if (request.action === "clearHighlights") {
         document.querySelectorAll('.gemini-highlighted-text').forEach(h => h.replaceWith(...h.childNodes));

@@ -17,11 +17,11 @@ chrome.runtime.onInstalled.addListener(() => {
 // Handle Right-Click Actions
 chrome.contextMenus.onClicked.addListener((info, tab) => {
     const actionMap = {
-        "hl-yellow": { action: "applyHighlight", color: "#ffc107", opacity: "0.4", strikethrough: false },
-        "hl-blue": { action: "applyHighlight", color: "#007bff", opacity: "0.4", strikethrough: false },
-        "hl-red": { action: "applyHighlight", color: "#dc3545", opacity: "0.4", strikethrough: false },
-        "hl-green": { action: "applyHighlight", color: "#28a745", opacity: "0.4", strikethrough: false },
-        "hl-strikethrough": { action: "applyHighlight", color: "transparent", opacity: "1.0", strikethrough: true },
+        "hl-yellow": { action: "applyHighlight", color: "#ffc107", strikethrough: false },
+        "hl-blue": { action: "applyHighlight", color: "#007bff", strikethrough: false },
+        "hl-red": { action: "applyHighlight", color: "#dc3545", strikethrough: false },
+        "hl-green": { action: "applyHighlight", color: "#28a745", strikethrough: false },
+        "hl-strikethrough": { action: "applyHighlight", color: "transparent", strikethrough: true },
         "hl-clear": { action: "clearSelection" }
     };
 
