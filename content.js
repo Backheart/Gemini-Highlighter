@@ -1,18 +1,28 @@
-let localConfig = { autoMode: false, pinSidebar: false, showMinimap: true, color: "#ffc107", opacity: "1.0", strikethrough: false };
+let localConfig = { autoMode: false, pinSidebar: false, showMinimap: true, color: "#ffc107", opacity: "1.0", strikethrough: false, glassTheme: true };
+
+function updateSidebarGlassMode() {
+    const sidebar = document.getElementById('gemini-highlighter-sidebar');
+    if (sidebar) {
+        if (localConfig.glassTheme) sidebar.classList.add('glass-mode');
+        else sidebar.classList.remove('glass-mode');
+    }
+}
 
 chrome.storage.local.get(['lastConfig'], (res) => {
     if (res.lastConfig) localConfig = { ...localConfig, ...res.lastConfig };
     updateHighlightMap(); 
+    updateSidebarGlassMode();
 });
+
 chrome.storage.onChanged.addListener((changes) => {
     if (changes.lastConfig) {
         localConfig = changes.lastConfig.newValue;
         updateHighlightMap(); 
+        updateSidebarGlassMode();
     }
 });
 
 // --- SELECTION MEMORY ENGINE ---
-// This guarantees we don't lose the selection when clicking inside the sidebar!
 let lastSelectionRange = null;
 document.addEventListener('selectionchange', () => {
     const sel = window.getSelection();
@@ -24,9 +34,16 @@ document.addEventListener('selectionchange', () => {
 function toggleSidebar() {
     let sidebar = document.getElementById('gemini-highlighter-sidebar');
     if (!sidebar) {
-        sidebar = document.createElement('iframe'); sidebar.id = 'gemini-highlighter-sidebar';
-        sidebar.src = chrome.runtime.getURL('sidebar.html'); document.body.appendChild(sidebar);
-        setTimeout(() => sidebar.classList.add('open'), 50);
+        sidebar = document.createElement('iframe'); 
+        sidebar.id = 'gemini-highlighter-sidebar';
+        sidebar.src = chrome.runtime.getURL('sidebar.html'); 
+        // THE CRITICAL FIX: Tell the browser this iframe is allowed to be see-through!
+        sidebar.setAttribute('allowtransparency', 'true'); 
+        document.body.appendChild(sidebar);
+        setTimeout(() => {
+            sidebar.classList.add('open');
+            updateSidebarGlassMode();
+        }, 50);
     } else {
         sidebar.classList.toggle('open');
     }
@@ -59,7 +76,6 @@ function highlightSelection(color, opacity, isStrikethrough = localConfig.strike
     let range;
     const sel = window.getSelection();
     
-    // Check if we have an active selection, otherwise use our Memory Selection!
     if (sel && sel.rangeCount > 0 && !sel.isCollapsed) {
         range = sel.getRangeAt(0);
     } else if (lastSelectionRange) {
@@ -70,8 +86,6 @@ function highlightSelection(color, opacity, isStrikethrough = localConfig.strike
 
     const rgbaColor = hexToRGBA(color, opacity);
     const dynamicTextColor = getTextColorForBackground(color, opacity);
-    
-    // Generate a unique ID to group this block of highlights together
     const highlightId = Date.now().toString() + Math.random().toString(36).substr(2, 5);
 
     const nodes = [];
@@ -91,7 +105,7 @@ function highlightSelection(color, opacity, isStrikethrough = localConfig.strike
         if (start < end && node.nodeValue.trim() !== "") {
             const span = document.createElement('span');
             span.className = "gemini-highlighted-text";
-            span.setAttribute('data-highlight-id', highlightId); // Stamp the ID
+            span.setAttribute('data-highlight-id', highlightId);
             span.style.backgroundColor = rgbaColor;
             span.style.color = dynamicTextColor; 
             span.style.display = "inline"; 
@@ -105,7 +119,7 @@ function highlightSelection(color, opacity, isStrikethrough = localConfig.strike
     });
     
     if(sel) sel.removeAllRanges();
-    lastSelectionRange = null; // Clear memory
+    lastSelectionRange = null; 
     saveHighlightsToStorage();
     updateHighlightMap();
 }
@@ -120,22 +134,29 @@ document.documentElement.appendChild(hoverDeleteBtn);
 document.addEventListener('mouseover', (e) => {
     if (e.target.classList.contains('gemini-highlighted-text')) {
         activeHoverSpan = e.target;
-        const rect = activeHoverSpan.getBoundingClientRect();
+        
+        const rects = activeHoverSpan.getClientRects();
+        let targetRect = rects[0]; 
+        for(let r of rects) {
+            if (e.clientY >= r.top && e.clientY <= r.bottom) {
+                targetRect = r;
+                break;
+            }
+        }
+        
         hoverDeleteBtn.style.display = 'flex';
-        hoverDeleteBtn.style.top = `${rect.top + window.scrollY - 8}px`;
-        hoverDeleteBtn.style.left = `${rect.right + window.scrollX - 8}px`;
+        hoverDeleteBtn.style.top = `${targetRect.top + window.scrollY - 8}px`;
+        hoverDeleteBtn.style.left = `${targetRect.right + window.scrollX - 8}px`;
+        
     } else if (e.target !== hoverDeleteBtn) {
         hoverDeleteBtn.style.display = 'none';
         activeHoverSpan = null;
     }
 });
 
-// Group Deletion Logic
 hoverDeleteBtn.addEventListener('click', () => {
     if (activeHoverSpan) {
         const id = activeHoverSpan.getAttribute('data-highlight-id');
-        
-        // Find ALL spans that were created in that exact same highlight action
         if (id) {
             const groupSpans = document.querySelectorAll(`.gemini-highlighted-text[data-highlight-id="${id}"]`);
             groupSpans.forEach(s => {
@@ -145,13 +166,11 @@ hoverDeleteBtn.addEventListener('click', () => {
                 parent.normalize();
             });
         } else {
-            // Fallback for old saved highlights without IDs
             const parent = activeHoverSpan.parentNode;
             while (activeHoverSpan.firstChild) parent.insertBefore(activeHoverSpan.firstChild, activeHoverSpan);
             activeHoverSpan.remove();
             parent.normalize();
         }
-
         saveHighlightsToStorage();
         updateHighlightMap();
         hoverDeleteBtn.style.display = 'none';
@@ -180,7 +199,6 @@ function getHighlightContext(span) {
     if (!parentBlock) parentBlock = span.parentElement;
     if (!parentBlock) return null;
 
-    // THE FIX: Save the exact Index of the block so Identical text (Lorem Ipsum) doesn't get confused
     const blocks = Array.from(document.querySelectorAll(UNIVERSAL_CONTAINERS));
     const blockIndex = blocks.indexOf(parentBlock);
 
@@ -192,7 +210,7 @@ function getHighlightContext(span) {
         color: span.style.backgroundColor,
         textColor: span.style.color, 
         isStrikethrough: span.style.textDecoration.includes('line-through'), 
-        highlightId: span.getAttribute('data-highlight-id') || Date.now().toString(), // Save the ID Group
+        highlightId: span.getAttribute('data-highlight-id') || Date.now().toString(), 
         parentText: parentBlock.textContent.trim(), 
         textOffset: range.toString().length,
         blockIndex: blockIndex
@@ -222,14 +240,12 @@ function applySavedHighlights() {
             saved.forEach(item => {
                 let targetBlock = null;
 
-                // Priority 1: Exact Block Index match (Fixes Lorem Ipsum bug)
                 if (item.blockIndex !== undefined && blocks[item.blockIndex]) {
                     if (blocks[item.blockIndex].textContent.trim() === item.parentText) {
                         targetBlock = blocks[item.blockIndex];
                     }
                 }
                 
-                // Priority 2: Fallback search if the webpage shifted dynamically
                 if (!targetBlock) {
                     for (let block of blocks) {
                         if (block.textContent.trim() === item.parentText) {
@@ -255,7 +271,6 @@ function applySavedHighlights() {
                                 span.style.backgroundColor = item.color;
                                 span.style.display = "inline";
                                 
-                                // Restore all properties
                                 span.setAttribute('data-highlight-id', item.highlightId);
                                 if (item.textColor) span.style.color = item.textColor;
                                 if (item.isStrikethrough) span.style.textDecoration = 'line-through';
@@ -353,7 +368,6 @@ function updateHighlightMap() {
         const snippet = words.slice(0, 3).join(' ') + (words.length > 3 ? '...' : '');
         tooltip.textContent = snippet; marker.appendChild(tooltip);
         
-        // THE FIX: Increased offset to -150 to leave breathing room at top of page!
         marker.addEventListener('click', () => {
             if (isWindowScroll) window.scrollTo({ top: group.targetTop - 150, behavior: 'smooth' });
             else scrollContainer.scrollTo({ top: group.targetTop - 150, behavior: 'smooth' });
@@ -366,7 +380,6 @@ window.addEventListener('resize', updateHighlightMap);
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.action === "toggleSidebar") toggleSidebar();
     else if (request.action === "applyHighlight") {
-        // ALWAYS obey the user's intensity/opacity toggle, override right-click values!
         const opacityToUse = localConfig.opacity;
         const colorToUse = request.color || localConfig.color;
         const isStrike = request.strikethrough !== undefined ? request.strikethrough : localConfig.strikethrough;
