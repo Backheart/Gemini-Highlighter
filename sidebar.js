@@ -1,5 +1,4 @@
-// Added showMinimap to config (default true)
-let config = { color: "#ffc107", opacity: "1.0", autoMode: false, pinSidebar: false, showMinimap: true };
+let config = { color: "#ffc107", opacity: "1.0", autoMode: false, pinSidebar: false, showMinimap: true, strikethrough: false };
 
 function updateUI() {
     document.getElementById('autoModeToggle').checked = config.autoMode;
@@ -9,9 +8,34 @@ function updateUI() {
     document.querySelectorAll('.opacity-btn').forEach(btn => btn.classList.remove('active'));
     document.getElementById(config.opacity === "1.0" ? 'defaultOpacity' : 'lowOpacity').classList.add('active');
     
-    document.querySelectorAll('.color-btn').forEach(btn => {
-        btn.classList.toggle('active-color', btn.getAttribute('data-color') === config.color);
+    // Update Strikethrough Button
+    const stBtn = document.getElementById('strikethroughToggleBtn');
+    if (config.strikethrough) {
+        stBtn.innerHTML = '<s>Strikethrough Mode: ON</s>';
+        stBtn.style.background = '#4a90e2';
+        stBtn.style.borderColor = '#ffffff';
+    } else {
+        stBtn.innerHTML = '<s>Strikethrough Mode: OFF</s>';
+        stBtn.style.background = 'var(--card)';
+        stBtn.style.borderColor = '#555';
+    }
+
+    // Update Colors
+    let isCustomColor = true;
+    document.querySelectorAll('.preset-color').forEach(btn => {
+        const isMatch = btn.getAttribute('data-color') === config.color;
+        btn.classList.toggle('active-color', isMatch);
+        if (isMatch) isCustomColor = false;
     });
+
+    // Custom Color Picker UI
+    const picker = document.getElementById('customColorPicker');
+    if (isCustomColor && config.color !== 'transparent') {
+        picker.value = config.color;
+        picker.classList.add('active-color');
+    } else {
+        picker.classList.remove('active-color');
+    }
 }
 
 chrome.storage.local.get(['lastConfig'], (res) => {
@@ -31,15 +55,33 @@ document.getElementById('minimapToggle').addEventListener('change', (e) => { con
 document.getElementById('lowOpacity').addEventListener('click', () => { config.opacity = "0.4"; saveConfig(); });
 document.getElementById('defaultOpacity').addEventListener('click', () => { config.opacity = "1.0"; saveConfig(); });
 
-document.querySelectorAll('.color-btn').forEach(button => {
+// Strikethrough Toggle
+document.getElementById('strikethroughToggleBtn').addEventListener('click', () => {
+    config.strikethrough = !config.strikethrough;
+    saveConfig();
+});
+
+// Presets
+document.querySelectorAll('.preset-color').forEach(button => {
     button.addEventListener('click', () => {
         config.color = button.getAttribute('data-color');
         saveConfig();
-        chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-            chrome.tabs.sendMessage(tabs[0].id, { action: "applyHighlight", color: config.color, opacity: config.opacity });
-        });
+        triggerManualHighlight();
     });
 });
+
+// Custom Color Picker listener
+document.getElementById('customColorPicker').addEventListener('change', (e) => {
+    config.color = e.target.value;
+    saveConfig();
+    triggerManualHighlight();
+});
+
+function triggerManualHighlight() {
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        chrome.tabs.sendMessage(tabs[0].id, { action: "applyHighlight", color: config.color, opacity: config.opacity, strikethrough: config.strikethrough });
+    });
+}
 
 document.getElementById('clearSelection').addEventListener('click', () => {
     chrome.tabs.query({ active: true, currentWindow: true }, tabs => chrome.tabs.sendMessage(tabs[0].id, { action: "clearSelection" }));

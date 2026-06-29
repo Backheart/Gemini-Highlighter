@@ -1,96 +1,48 @@
 .gemini-highlighted-text {
-    color: inherit !important; /* Keeps text readable */
+    /* Removed color: inherit !important so we can calculate contrast dynamically! */
     border-radius: 4px;
     padding: 2px 0;
     box-shadow: 0 0 2px rgba(0,0,0,0.1);
     transition: background-color 0.3s ease;
 }
 
-/* Sidebar Styling */
 #gemini-highlighter-sidebar {
-    position: fixed;
-    top: 0;
-    left: -280px; 
-    width: 260px;
-    height: 100vh;
-    border: none;
-    border-right: 1px solid rgba(255,255,255,0.1);
-    z-index: 2147483647;
-    background: #1e1e1e;
-    box-shadow: 5px 0 15px rgba(0,0,0,0.5);
-    transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    position: fixed; top: 0; left: -280px; width: 260px; height: 100vh; border: none;
+    border-right: 1px solid rgba(255,255,255,0.1); z-index: 2147483647; background: #1e1e1e;
+    box-shadow: 5px 0 15px rgba(0,0,0,0.5); transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     color-scheme: dark;
 }
+#gemini-highlighter-sidebar.open { left: 0; }
 
-#gemini-highlighter-sidebar.open {
-    left: 0;
-}
-
-/* --- MINIMAP STYLES --- */
 #highlight-minimap-track {
-    position: fixed;
-    top: 0;
-    right: 0;
-    width: 14px; 
-    height: 100vh;
-    z-index: 2147483647; /* Forces it above EVERYTHING */
-    pointer-events: none; 
+    position: fixed; top: 0; right: 0; width: 14px; height: 100vh;
+    z-index: 2147483647; pointer-events: none; 
 }
-
 .highlight-minimap-marker {
-    position: absolute;
-    right: 2px;
-    width: 10px;
-    height: 6px; 
-    border-radius: 2px;
-    cursor: pointer;
-    pointer-events: auto; 
-    box-shadow: -1px 1px 3px rgba(0,0,0,0.4);
+    position: absolute; right: 2px; width: 10px; height: 6px; border-radius: 2px;
+    cursor: pointer; pointer-events: auto; box-shadow: -1px 1px 3px rgba(0,0,0,0.4);
     transition: transform 0.1s ease, width 0.1s ease;
 }
+.highlight-minimap-marker:hover { transform: scale(1.2) translateX(-2px); width: 14px; z-index: 10; }
 
-.highlight-minimap-marker:hover {
-    transform: scale(1.2) translateX(-2px);
-    width: 14px;
-    z-index: 10;
-}
-
-/* --- THE NEW HOVER TOOLTIP --- */
 .minimap-tooltip {
-    position: absolute;
-    right: 20px; /* Pushes it slightly left of the scrollbar */
-    top: -10px;
-    background: #ffffff;
-    color: #000000;
-    padding: 4px 8px;
-    border-radius: 4px;
-    font-size: 12px;
-    font-weight: 600;
-    font-family: sans-serif;
-    white-space: nowrap;
-    opacity: 0;
-    visibility: hidden;
-    pointer-events: none;
-    transition: opacity 0.2s ease, transform 0.2s ease;
-    box-shadow: 0 4px 6px rgba(0,0,0,0.3);
-    border: 1px solid #ddd;
-    transform: translateX(10px); /* Starts slightly offset for animation */
+    position: absolute; right: 20px; top: -10px; background: #ffffff; color: #000000;
+    padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: 600; font-family: sans-serif;
+    white-space: nowrap; opacity: 0; visibility: hidden; pointer-events: none;
+    transition: opacity 0.2s ease, transform 0.2s ease; box-shadow: 0 4px 6px rgba(0,0,0,0.3); border: 1px solid #ddd;
+    transform: translateX(10px); 
 }
-
-/* Triangle pointer for the tooltip */
 .minimap-tooltip::after {
-    content: '';
-    position: absolute;
-    top: 50%;
-    right: -5px;
-    transform: translateY(-50%);
-    border-width: 5px 0 5px 5px;
-    border-style: solid;
-    border-color: transparent transparent transparent #ffffff;
+    content: ''; position: absolute; top: 50%; right: -5px; transform: translateY(-50%);
+    border-width: 5px 0 5px 5px; border-style: solid; border-color: transparent transparent transparent #ffffff;
 }
+.highlight-minimap-marker:hover .minimap-tooltip { opacity: 1; visibility: visible; transform: translateX(0); }
 
-.highlight-minimap-marker:hover .minimap-tooltip {
-    opacity: 1;
-    visibility: visible;
-    transform: translateX(0); /* Slides in */
+/* --- NEW: FLOATING HOVER DELETE BUTTON (The 'X') --- */
+#highlight-hover-delete {
+    position: absolute; background: #ff3366; color: white; border-radius: 50%; width: 16px; height: 16px;
+    font-size: 11px; font-weight: bold; display: flex; align-items: center; justify-content: center;
+    cursor: pointer; z-index: 2147483647; box-shadow: 0 2px 4px rgba(0,0,0,0.4); border: 1px solid white;
+    pointer-events: auto; display: none; line-height: 1; transition: transform 0.1s;
 }
+#highlight-hover-delete:hover { transform: scale(1.2); background: #e60039; }

@@ -5,16 +5,15 @@
   <style>
     :root { --bg: #1e1e1e; --card: #2d2d2d; --text: #e0e0e0; --accent: #ffc107; }
     body { 
-      width: 100%; height: 100vh; padding: 20px; box-sizing: border-box;
-      font-family: 'Segoe UI', system-ui, sans-serif; 
+      width: 100%; height: 100vh; padding: 20px; box-sizing: border-box; font-family: 'Segoe UI', sans-serif; 
       background: var(--bg); color: var(--text); margin: 0;
     }
     h2 { font-size: 18px; margin-top: 0; padding-bottom: 10px; border-bottom: 1px solid #444; }
-    
     h4 { margin: 15px 0 8px 0; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px; color: #aaa; }
     
-    .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 15px; }
-    .color-btn { height: 40px; border-radius: 6px; border: 2px solid transparent; cursor: pointer; transition: 0.1s; }
+    /* Expanded grid for 6 color options */
+    .grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; margin-bottom: 15px; }
+    .color-btn { height: 35px; border-radius: 6px; border: 2px solid transparent; cursor: pointer; transition: 0.1s; }
     .color-btn:hover { transform: scale(1.05); }
     .color-btn.active-color { border-color: #ffffff; box-shadow: 0 0 8px rgba(255,255,255,0.4); transform: scale(1.05); }
 
@@ -22,13 +21,21 @@
     #blue { background-color: #007bff; }
     #red { background-color: #dc3545; }
     #green { background-color: #28a745; }
+    
+    /* The "Transparent" and Custom Color Picker */
+    #transparent-color { background: repeating-linear-gradient(45deg, #333, #333 4px, #555 4px, #555 8px); display: flex; align-items: center; justify-content: center; font-size: 10px; }
+    #customColorPicker { padding: 0; background: none; border: none; width: 100%; }
+    #customColorPicker::-webkit-color-swatch-wrapper { padding: 0; }
+    #customColorPicker::-webkit-color-swatch { border: none; border-radius: 6px; }
 
     .action-btn { 
       width: 100%; margin: 6px 0; padding: 10px; border: none; border-radius: 6px;
-      cursor: pointer; font-weight: 600; font-size: 13px; background: var(--card); color: white;
+      cursor: pointer; font-weight: 600; font-size: 13px; background: var(--card); color: white; transition: 0.1s;
     }
     .action-btn:hover { background: #444; }
     .action-btn:active { transform: scale(0.95); opacity: 0.8; } 
+    
+    #strikethroughToggleBtn { font-size: 14px; margin-bottom: 15px; border: 1px solid #555; }
     #exportBtn { background: #4a90e2; color: white; margin-top: 20px; }
     #exportBtn:hover { background: #357abd; }
     #clear { color: #ff6b6b; border: 1px solid #444; }
@@ -50,30 +57,28 @@
 </head>
 <body>
   <h2>Highlighter Pro</h2>
-  
   <div id="mainControls">
+    
     <h4>Colors</h4>
     <div class="grid">
-      <div id="yellow" class="color-btn" data-color="#ffc107"></div>
-      <div id="blue" class="color-btn" data-color="#007bff"></div>
-      <div id="red" class="color-btn" data-color="#dc3545"></div>
-      <div id="green" class="color-btn" data-color="#28a745"></div>
+      <div id="yellow" class="color-btn preset-color" data-color="#ffc107"></div>
+      <div id="blue" class="color-btn preset-color" data-color="#007bff"></div>
+      <div id="red" class="color-btn preset-color" data-color="#dc3545"></div>
+      <div id="green" class="color-btn preset-color" data-color="#28a745"></div>
+      <div id="transparent-color" class="color-btn preset-color" data-color="transparent" title="No Color">🚫</div>
+      <!-- Custom Color Picker -->
+      <input type="color" id="customColorPicker" class="color-btn" title="Pick Custom Color" value="#ff00ff">
     </div>
 
+    <!-- HUGE STRIKETHROUGH TOGGLE BUTTON -->
+    <button id="strikethroughToggleBtn" class="action-btn">
+      <s>Strikethrough Mode: OFF</s>
+    </button>
+
     <div class="toggles-group">
-      <div class="toggle-row">
-          <span class="label-text">Auto-Highlight</span>
-          <label class="switch"><input type="checkbox" id="autoModeToggle"><span class="slider"></span></label>
-      </div>
-      <div class="toggle-row">
-          <span class="label-text">Keep Panel Open</span>
-          <label class="switch"><input type="checkbox" id="pinSidebarToggle"><span class="slider"></span></label>
-      </div>
-      <!-- NEW TOGGLE -->
-      <div class="toggle-row">
-          <span class="label-text">Show Scroll Tags</span>
-          <label class="switch"><input type="checkbox" id="minimapToggle" checked><span class="slider"></span></label>
-      </div>
+      <div class="toggle-row"><span class="label-text">Auto-Highlight</span><label class="switch"><input type="checkbox" id="autoModeToggle"><span class="slider"></span></label></div>
+      <div class="toggle-row"><span class="label-text">Keep Panel Open</span><label class="switch"><input type="checkbox" id="pinSidebarToggle"><span class="slider"></span></label></div>
+      <div class="toggle-row"><span class="label-text">Show Scroll Tags</span><label class="switch"><input type="checkbox" id="minimapToggle" checked><span class="slider"></span></label></div>
     </div>
 
     <h4>Intensity</h4>
@@ -87,7 +92,6 @@
     <button id="clearSelection" class="action-btn">Clear Selected Text</button>
     <button id="clear" class="action-btn">Clear All Page</button>
   </div>
-
   <script src="sidebar.js"></script>
 </body>
 </html>
