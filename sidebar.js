@@ -59,12 +59,30 @@ document.querySelectorAll('.preset-color').forEach(button => {
     });
 });
 
-// Auto-apply custom color when picker window closes
-document.getElementById('customColorPicker').addEventListener('change', (e) => {
+// --- THE FIX: Custom Color Listeners ---
+const customPicker = document.getElementById('customColorPicker');
+
+// 1. Click: Instantly apply the initial color (e.g., Pink) even if they don't change anything!
+customPicker.addEventListener('click', (e) => {
     config.color = e.target.value;
     saveConfig(); 
     triggerManualHighlight();
 });
+
+// 2. Input: Live-update the text color as they drag the mouse inside the OS Color dialog!
+customPicker.addEventListener('input', (e) => {
+    config.color = e.target.value;
+    saveConfig(); 
+    triggerManualHighlight();
+});
+
+// 3. Change: Catch-all for when the OS window fully closes
+customPicker.addEventListener('change', (e) => {
+    config.color = e.target.value;
+    saveConfig(); 
+    triggerManualHighlight();
+});
+
 
 function triggerManualHighlight() {
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {

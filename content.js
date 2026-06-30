@@ -24,6 +24,7 @@ chrome.storage.onChanged.addListener((changes) => {
 
 // --- SELECTION MEMORY ENGINE ---
 let lastSelectionRange = null;
+
 document.addEventListener('selectionchange', () => {
     const sel = window.getSelection();
     if (sel && sel.rangeCount > 0 && !sel.isCollapsed) {
@@ -37,7 +38,6 @@ function toggleSidebar() {
         sidebar = document.createElement('iframe'); 
         sidebar.id = 'gemini-highlighter-sidebar';
         sidebar.src = chrome.runtime.getURL('sidebar.html'); 
-        // THE CRITICAL FIX: Tell the browser this iframe is allowed to be see-through!
         sidebar.setAttribute('allowtransparency', 'true'); 
         document.body.appendChild(sidebar);
         setTimeout(() => {
@@ -51,9 +51,16 @@ function toggleSidebar() {
 
 document.addEventListener('mousedown', (e) => {
     try {
+        // Clear memory if clicking on the main webpage so we don't accidentally recolor old text
+        if (e.target.id !== 'gemini-highlighter-sidebar') {
+            lastSelectionRange = null; 
+        }
+
         const sidebar = document.getElementById('gemini-highlighter-sidebar');
         if (sidebar && sidebar.classList.contains('open') && !localConfig.pinSidebar) {
-            sidebar.classList.remove('open');
+            if (e.target.id !== 'gemini-highlighter-sidebar') {
+                sidebar.classList.remove('open');
+            }
         }
     } catch (err) {}
 });
@@ -72,6 +79,7 @@ function hexToRGBA(hex, opacity) {
     return `rgba(${r}, ${g}, ${b}, ${opacity})`;
 }
 
+// --- THE NEW RECOLORING ENGINE ---
 function highlightSelection(color, opacity, isStrikethrough = localConfig.strikethrough) {
     let range;
     const sel = window.getSelection();
@@ -103,23 +111,35 @@ function highlightSelection(color, opacity, isStrikethrough = localConfig.strike
         const end = node === range.endContainer ? range.endOffset : node.nodeValue.length;
 
         if (start < end && node.nodeValue.trim() !== "") {
-            const span = document.createElement('span');
-            span.className = "gemini-highlighted-text";
-            span.setAttribute('data-highlight-id', highlightId);
-            span.style.backgroundColor = rgbaColor;
-            span.style.color = dynamicTextColor; 
-            span.style.display = "inline"; 
-            if (isStrikethrough) span.style.textDecoration = "line-through";
             
-            const partToHighlight = node.splitText(start);
-            partToHighlight.splitText(end - start);
-            partToHighlight.parentNode.replaceChild(span, partToHighlight);
-            span.appendChild(partToHighlight);
+            // CHECK: Is this text already highlighted?
+            let existingSpan = node.parentElement.closest('.gemini-highlighted-text');
+            
+            if (existingSpan) {
+                // Yes! Just change the color of the existing highlight (Live Preview Magic)
+                existingSpan.style.backgroundColor = rgbaColor;
+                existingSpan.style.color = dynamicTextColor;
+                existingSpan.style.textDecoration = isStrikethrough ? "line-through" : "none";
+            } else {
+                // No! Create a new highlight span.
+                const span = document.createElement('span');
+                span.className = "gemini-highlighted-text";
+                span.setAttribute('data-highlight-id', highlightId);
+                span.style.backgroundColor = rgbaColor;
+                span.style.color = dynamicTextColor; 
+                span.style.display = "inline"; 
+                if (isStrikethrough) span.style.textDecoration = "line-through";
+                
+                const partToHighlight = node.splitText(start);
+                partToHighlight.splitText(end - start);
+                partToHighlight.parentNode.replaceChild(span, partToHighlight);
+                span.appendChild(partToHighlight);
+            }
         }
     });
     
+    // Clear live selection, but keep lastSelectionRange so Live Preview works!
     if(sel) sel.removeAllRanges();
-    lastSelectionRange = null; 
     saveHighlightsToStorage();
     updateHighlightMap();
 }
