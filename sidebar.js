@@ -1,4 +1,4 @@
-let config = { color: "#ffc107", opacity: "1.0", autoMode: false, pinSidebar: false, showMinimap: true, strikethrough: false, glassTheme: true };
+let config = { color: "#FFC107", opacity: "1.0", autoMode: false, pinSidebar: false, showMinimap: true, strikethrough: false, glassTheme: true };
 
 function updateUI() {
     document.getElementById('autoModeToggle').checked = config.autoMode;
@@ -6,21 +6,21 @@ function updateUI() {
     document.getElementById('minimapToggle').checked = config.showMinimap;
     document.getElementById('glassToggle').checked = config.glassTheme;
     
-    document.querySelectorAll('.opacity-btn').forEach(btn => btn.classList.remove('active'));
+    document.querySelectorAll('.intensity-btn').forEach(btn => btn.classList.remove('active'));
     document.getElementById(config.opacity === "1.0" ? 'defaultOpacity' : 'lowOpacity').classList.add('active');
     
     const stBtn = document.getElementById('strikethroughToggleBtn');
     if (config.strikethrough) {
-        stBtn.innerHTML = '<s>Strikethrough Mode: ON</s>';
-        stBtn.style.background = '#4a90e2'; stBtn.style.borderColor = '#ffffff';
+        stBtn.innerHTML = 'Strikethrough Mode: ON';
+        stBtn.style.background = '#4D8EFF'; stBtn.style.color = '#00285D'; stBtn.style.borderColor = 'transparent';
     } else {
-        stBtn.innerHTML = '<s>Strikethrough Mode: OFF</s>';
-        stBtn.style.background = 'var(--card)'; stBtn.style.borderColor = '#555';
+        stBtn.innerHTML = 'Strikethrough Mode: OFF';
+        stBtn.style.background = 'var(--card)'; stBtn.style.color = 'var(--text-muted)'; stBtn.style.borderColor = 'var(--card-border)';
     }
 
     let isCustomColor = true;
     document.querySelectorAll('.preset-color').forEach(btn => {
-        const isMatch = btn.getAttribute('data-color') === config.color;
+        const isMatch = btn.getAttribute('data-color').toLowerCase() === config.color.toLowerCase();
         btn.classList.toggle('active-color', isMatch);
         if (isMatch) isCustomColor = false;
     });
@@ -55,38 +55,30 @@ document.getElementById('strikethroughToggleBtn').addEventListener('click', () =
 
 document.querySelectorAll('.preset-color').forEach(button => {
     button.addEventListener('click', () => {
-        config.color = button.getAttribute('data-color'); saveConfig(); triggerManualHighlight();
+        config.color = button.getAttribute('data-color'); saveConfig(); 
+        triggerManualHighlight(false); // False = Commit immediately
     });
 });
 
-// --- THE FIX: Custom Color Listeners ---
 const customPicker = document.getElementById('customColorPicker');
 
-// 1. Click: Instantly apply the initial color (e.g., Pink) even if they don't change anything!
+// The Live-Preview Engine Fix!
+// 1. Click: Starts preview mode
 customPicker.addEventListener('click', (e) => {
-    config.color = e.target.value;
-    saveConfig(); 
-    triggerManualHighlight();
+    config.color = e.target.value; triggerManualHighlight(true); // True = Preview Mode
 });
-
-// 2. Input: Live-update the text color as they drag the mouse inside the OS Color dialog!
+// 2. Input: Drags slider (Live Update)
 customPicker.addEventListener('input', (e) => {
-    config.color = e.target.value;
-    saveConfig(); 
-    triggerManualHighlight();
+    config.color = e.target.value; triggerManualHighlight(true);
 });
-
-// 3. Change: Catch-all for when the OS window fully closes
+// 3. Change: Mouse lifts up (Save & Commit)
 customPicker.addEventListener('change', (e) => {
-    config.color = e.target.value;
-    saveConfig(); 
-    triggerManualHighlight();
+    config.color = e.target.value; saveConfig(); triggerManualHighlight(false);
 });
 
-
-function triggerManualHighlight() {
+function triggerManualHighlight(isPreview) {
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-        chrome.tabs.sendMessage(tabs[0].id, { action: "applyHighlight", color: config.color, opacity: config.opacity, strikethrough: config.strikethrough });
+        chrome.tabs.sendMessage(tabs[0].id, { action: "applyHighlight", color: config.color, opacity: config.opacity, strikethrough: config.strikethrough, preview: isPreview });
     });
 }
 
