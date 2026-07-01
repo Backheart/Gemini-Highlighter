@@ -1,4 +1,4 @@
-let localConfig = { autoMode: false, pinSidebar: false, showMinimap: true, color: "#ffc107", opacity: "1.0", strikethrough: false, glassTheme: true };
+let localConfig = { autoMode: false, pinSidebar: false, showMinimap: true, color: "#FFC107", opacity: "1.0", strikethrough: false, glassTheme: true };
 
 function updateSidebarGlassMode() {
     const sidebar = document.getElementById('gemini-highlighter-sidebar');
@@ -22,14 +22,37 @@ chrome.storage.onChanged.addListener((changes) => {
     }
 });
 
-// --- SELECTION MEMORY ENGINE ---
+// --- THE UPGRADED FOCUS TRACKER ---
 let lastSelectionRange = null;
+let lastAppliedHighlightId = null;
 
+// When the user highlights NEW text, instantly forget the old highlight focus!
 document.addEventListener('selectionchange', () => {
     const sel = window.getSelection();
-    if (sel && sel.rangeCount > 0 && !sel.isCollapsed) {
+    if (sel && sel.rangeCount > 0 && sel.toString().trim().length > 0) {
         lastSelectionRange = sel.getRangeAt(0).cloneRange();
+        // FORCE FORGET: The next color clicked belongs to THIS new text.
+        lastAppliedHighlightId = null; 
     }
+});
+
+document.addEventListener('mousedown', (e) => {
+    try {
+        if (e.target.id !== 'gemini-highlighter-sidebar') {
+            // If they explicitly click on an OLD highlight, make it the active focus!
+            if (e.target.classList.contains('gemini-highlighted-text')) {
+                lastAppliedHighlightId = e.target.getAttribute('data-highlight-id');
+                lastSelectionRange = null; 
+            } else {
+                lastAppliedHighlightId = null;
+            }
+        }
+
+        const sidebar = document.getElementById('gemini-highlighter-sidebar');
+        if (sidebar && sidebar.style.left === '0px' && !localConfig.pinSidebar) {
+            if (e.target.id !== 'gemini-highlighter-sidebar') sidebar.style.left = '-324px';
+        }
+    } catch (err) {}
 });
 
 function toggleSidebar() {
@@ -39,31 +62,20 @@ function toggleSidebar() {
         sidebar.id = 'gemini-highlighter-sidebar';
         sidebar.src = chrome.runtime.getURL('sidebar.html'); 
         sidebar.setAttribute('allowtransparency', 'true'); 
+        
+        sidebar.style.cssText = `
+            position: fixed; top: 0; left: -324px; width: 304px; height: 100vh; border: none;
+            z-index: 2147483647; transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1); color-scheme: dark;
+        `;
         document.body.appendChild(sidebar);
         setTimeout(() => {
-            sidebar.classList.add('open');
+            sidebar.style.left = '0px'; 
             updateSidebarGlassMode();
         }, 50);
     } else {
-        sidebar.classList.toggle('open');
+        sidebar.style.left = sidebar.style.left === '0px' ? '-324px' : '0px';
     }
 }
-
-document.addEventListener('mousedown', (e) => {
-    try {
-        // Clear memory if clicking on the main webpage so we don't accidentally recolor old text
-        if (e.target.id !== 'gemini-highlighter-sidebar') {
-            lastSelectionRange = null; 
-        }
-
-        const sidebar = document.getElementById('gemini-highlighter-sidebar');
-        if (sidebar && sidebar.classList.contains('open') && !localConfig.pinSidebar) {
-            if (e.target.id !== 'gemini-highlighter-sidebar') {
-                sidebar.classList.remove('open');
-            }
-        }
-    } catch (err) {}
-});
 
 function getTextColorForBackground(hexColor, opacity) {
     if (hexColor === 'transparent') return 'inherit';
@@ -79,22 +91,43 @@ function hexToRGBA(hex, opacity) {
     return `rgba(${r}, ${g}, ${b}, ${opacity})`;
 }
 
-// --- THE NEW RECOLORING ENGINE ---
-function highlightSelection(color, opacity, isStrikethrough = localConfig.strikethrough) {
+function applyLivePreviewColor(color, opacity, isStrikethrough) {
+    if (!lastAppliedHighlightId) return false;
+    const spans = document.querySelectorAll(`.gemini-highlighted-text[data-highlight-id="${lastAppliedHighlightId}"]`);
+    if (spans.length === 0) return false;
+
+    const rgbaColor = hexToRGBA(color, opacity);
+    const dynamicTextColor = getTextColorForBackground(color, opacity);
+
+    spans.forEach(span => {
+        span.style.backgroundColor = rgbaColor;
+        span.style.color = dynamicTextColor;
+        span.style.textDecoration = isStrikethrough ? "line-through" : "none";
+    });
+    return true;
+}
+
+function highlightSelection(color, opacity, isStrikethrough, isPreview = false) {
+    if (isPreview && applyLivePreviewColor(color, opacity, isStrikethrough)) {
+        return; 
+    }
+
     let range;
     const sel = window.getSelection();
-    
-    if (sel && sel.rangeCount > 0 && !sel.isCollapsed) {
+    if (sel && sel.rangeCount > 0 && sel.toString().trim().length > 0) {
         range = sel.getRangeAt(0);
     } else if (lastSelectionRange) {
         range = lastSelectionRange;
     } else {
+        if (!isPreview) applyLivePreviewColor(color, opacity, isStrikethrough);
         return;
     }
 
     const rgbaColor = hexToRGBA(color, opacity);
     const dynamicTextColor = getTextColorForBackground(color, opacity);
     const highlightId = Date.now().toString() + Math.random().toString(36).substr(2, 5);
+    
+    lastAppliedHighlightId = highlightId; 
 
     const nodes = [];
     if (range.commonAncestorContainer.nodeType === Node.TEXT_NODE) {
@@ -111,17 +144,13 @@ function highlightSelection(color, opacity, isStrikethrough = localConfig.strike
         const end = node === range.endContainer ? range.endOffset : node.nodeValue.length;
 
         if (start < end && node.nodeValue.trim() !== "") {
-            
-            // CHECK: Is this text already highlighted?
             let existingSpan = node.parentElement.closest('.gemini-highlighted-text');
-            
             if (existingSpan) {
-                // Yes! Just change the color of the existing highlight (Live Preview Magic)
                 existingSpan.style.backgroundColor = rgbaColor;
                 existingSpan.style.color = dynamicTextColor;
                 existingSpan.style.textDecoration = isStrikethrough ? "line-through" : "none";
+                existingSpan.setAttribute('data-highlight-id', highlightId);
             } else {
-                // No! Create a new highlight span.
                 const span = document.createElement('span');
                 span.className = "gemini-highlighted-text";
                 span.setAttribute('data-highlight-id', highlightId);
@@ -138,13 +167,13 @@ function highlightSelection(color, opacity, isStrikethrough = localConfig.strike
         }
     });
     
-    // Clear live selection, but keep lastSelectionRange so Live Preview works!
     if(sel) sel.removeAllRanges();
-    saveHighlightsToStorage();
+    lastSelectionRange = null; 
+
+    if (!isPreview) saveHighlightsToStorage();
     updateHighlightMap();
 }
 
-// --- FLOATING HOVER DELETE ('X') BUTTON ---
 let activeHoverSpan = null;
 const hoverDeleteBtn = document.createElement('div');
 hoverDeleteBtn.id = 'highlight-hover-delete';
@@ -159,11 +188,9 @@ document.addEventListener('mouseover', (e) => {
         let targetRect = rects[0]; 
         for(let r of rects) {
             if (e.clientY >= r.top && e.clientY <= r.bottom) {
-                targetRect = r;
-                break;
+                targetRect = r; break;
             }
         }
-        
         hoverDeleteBtn.style.display = 'flex';
         hoverDeleteBtn.style.top = `${targetRect.top + window.scrollY - 8}px`;
         hoverDeleteBtn.style.left = `${targetRect.right + window.scrollX - 8}px`;
@@ -191,6 +218,9 @@ hoverDeleteBtn.addEventListener('click', () => {
             activeHoverSpan.remove();
             parent.normalize();
         }
+        
+        if (id === lastAppliedHighlightId) lastAppliedHighlightId = null;
+        
         saveHighlightsToStorage();
         updateHighlightMap();
         hoverDeleteBtn.style.display = 'none';
@@ -403,8 +433,9 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         const opacityToUse = localConfig.opacity;
         const colorToUse = request.color || localConfig.color;
         const isStrike = request.strikethrough !== undefined ? request.strikethrough : localConfig.strikethrough;
+        const isPreview = request.preview || false;
         
-        highlightSelection(colorToUse, opacityToUse, isStrike);
+        highlightSelection(colorToUse, opacityToUse, isStrike, isPreview);
     }
     else if (request.action === "clearHighlights") {
         document.querySelectorAll('.gemini-highlighted-text').forEach(h => h.replaceWith(...h.childNodes));
@@ -453,3 +484,19 @@ function handleAutoHighlight() {
         }
     } catch (e) {}
 }
+
+const style = document.createElement('style');
+style.textContent = `
+    .gemini-highlighted-text { border-radius: 4px; padding: 2px 0; box-shadow: 0 0 2px rgba(0,0,0,0.1); transition: background-color 0.1s ease; cursor: pointer; }
+    #gemini-highlighter-sidebar { background: rgba(5, 20, 36, 0.95); }
+    #gemini-highlighter-sidebar.glass-mode { background: rgba(5, 20, 36, 0.45) !important; backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); }
+    #highlight-minimap-track { position: fixed; top: 0; right: 0; width: 14px; height: 100vh; z-index: 2147483647; pointer-events: none; }
+    .highlight-minimap-marker { position: absolute; right: 2px; width: 10px; height: 6px; border-radius: 2px; cursor: pointer; pointer-events: auto; box-shadow: -1px 1px 3px rgba(0,0,0,0.4); transition: transform 0.1s ease, width 0.1s ease; }
+    .highlight-minimap-marker:hover { transform: scale(1.2) translateX(-2px); width: 14px; z-index: 10; }
+    .minimap-tooltip { position: absolute; right: 20px; top: -10px; background: #ffffff; color: #000000; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: 600; font-family: sans-serif; white-space: nowrap; opacity: 0; visibility: hidden; pointer-events: none; transition: opacity 0.2s ease, transform 0.2s ease; box-shadow: 0 4px 6px rgba(0,0,0,0.3); border: 1px solid #ddd; transform: translateX(10px); }
+    .minimap-tooltip::after { content: ''; position: absolute; top: 50%; right: -5px; transform: translateY(-50%); border-width: 5px 0 5px 5px; border-style: solid; border-color: transparent transparent transparent #ffffff; }
+    .highlight-minimap-marker:hover .minimap-tooltip { opacity: 1; visibility: visible; transform: translateX(0); }
+    #highlight-hover-delete { position: absolute; background: #ff3366; color: white; border-radius: 50%; width: 16px; height: 16px; font-size: 11px; font-weight: bold; display: flex; align-items: center; justify-content: center; cursor: pointer; z-index: 2147483647; box-shadow: 0 2px 4px rgba(0,0,0,0.4); border: 1px solid white; pointer-events: auto; display: none; line-height: 1; transition: transform 0.1s; }
+    #highlight-hover-delete:hover { transform: scale(1.2); background: #e60039; }
+`;
+document.head.appendChild(style);

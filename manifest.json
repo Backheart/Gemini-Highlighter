@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
-  "name": "Highlighter Pro: Web",
-  "version": "3.1",
+  "name": "Highlight Pro",
+  "version": "4.1",
   "description": "Highlight, save, and map text across the web.",
   "permissions": [
     "storage",
