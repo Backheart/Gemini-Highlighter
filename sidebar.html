@@ -3,83 +3,56 @@
 <head>
   <meta charset="UTF-8">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <!-- Load our dictionary -->
+  <script src="translations.js"></script>
   <style>
     :root { 
-      --bg-glass: rgba(5, 20, 36, 0.95); 
-      --card: #122131; 
-      --card-border: rgba(66, 71, 84, 0.3);
-      --text: #FFFFFF; 
-      --text-muted: #C2C6D6;
-      --accent: #4D8EFF; 
-      --radius: 8px; 
+      --bg-glass: rgba(5, 20, 36, 0.95); --card: #122131; --card-border: rgba(66, 71, 84, 0.3);
+      --text: #FFFFFF; --text-muted: #C2C6D6; --accent: #4D8EFF; --radius: 8px; 
     }
     
     html, body { background: transparent !important; color-scheme: dark; overflow-x: hidden; }
-
-    /* MODERN SLICK SCROLLBAR */
     ::-webkit-scrollbar { width: 5px; }
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.15); border-radius: 10px; }
     ::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.3); }
 
-    body { 
-      width: 100%; height: 100vh; padding: 14px 16px; box-sizing: border-box; 
-      font-family: 'Inter', sans-serif; color: var(--text); margin: 0;
-      overflow-y: auto; /* Allows smooth scrolling only if screen is tiny */
+    body { width: 100%; height: 100vh; padding: 14px 16px; box-sizing: border-box; font-family: 'Inter', sans-serif; color: var(--text); margin: 0; overflow-y: auto; }
+    
+    /* Header with Language Selector */
+    .header-row { display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 1px solid rgba(66, 71, 84, 0.2); margin-bottom: 12px; }
+    h2 { font-size: 20px; font-weight: 700; margin: 0; letter-spacing: -0.45px; }
+    
+    .lang-select { 
+        background: var(--card); color: var(--text); border: 1px solid var(--card-border); 
+        border-radius: 6px; padding: 4px; font-size: 11px; outline: none; cursor: pointer; font-family: 'Inter', sans-serif;
     }
+
+    h4, .sub-label { margin: 12px 0 8px 0; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.55px; color: var(--text-muted); display: block; }
     
-    h2 { font-size: 20px; font-weight: 700; margin-top: 0; padding-bottom: 12px; border-bottom: 1px solid rgba(66, 71, 84, 0.2); letter-spacing: -0.45px; }
-    
-    /* SHARED SUBHEADING STYLE (Fixes the Custom Color label) */
-    h4, .sub-label { 
-        margin: 12px 0 8px 0; font-size: 11px; font-weight: 800; text-transform: uppercase; 
-        letter-spacing: 0.55px; color: var(--text-muted); display: block; 
-    }
-    
-    /* COMPACTED GRID */
     .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
     .color-btn { height: 36px; border-radius: var(--radius); border: 1px solid rgba(255, 255, 255, 0.1); cursor: pointer; transition: 0.1s; }
     .color-btn:hover { transform: scale(1.03); box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
     .color-btn.active-color { border: 2px solid #ffffff; box-shadow: 0 0 10px rgba(255,255,255,0.3); transform: scale(1.03); }
 
-    #yellow { background-color: #FFC107; }
-    #blue { background-color: #2196F3; }
-    #red { background-color: #F44336; }
-    #green { background-color: #4CAF50; }
+    #yellow { background-color: #FFC107; } #blue { background-color: #2196F3; } #red { background-color: #F44336; } #green { background-color: #4CAF50; }
 
-    /* CUSTOM COLOR */
     .custom-color-container { margin-bottom: 12px; }
-    .color-picker-input { 
-        width: 100%; height: 36px; padding: 0; border: none; border-radius: var(--radius); cursor: pointer; 
-        background: transparent; outline: none; transition: 0.2s; 
-    }
+    .color-picker-input { width: 100%; height: 36px; padding: 0; border: none; border-radius: var(--radius); cursor: pointer; background: transparent; outline: none; transition: 0.2s; }
     .color-picker-input::-webkit-color-swatch-wrapper { padding: 0; }
     .color-picker-input::-webkit-color-swatch { border: 1px solid rgba(255,255,255,0.2); border-radius: var(--radius); }
     .color-picker-input.active-picker { box-shadow: 0 0 12px rgba(255,255,255,0.4); border: 2px solid white; }
 
-    /* COMPACTED ACTION PILLS */
-    .action-pill { 
-      width: 100%; height: 36px; margin: 0; border-radius: var(--radius); border: 1px solid var(--card-border);
-      cursor: pointer; font-weight: 600; font-size: 12px; background: var(--card); color: var(--text-muted); 
-      display: flex; align-items: center; justify-content: center; transition: 0.1s;
-    }
+    .action-pill { width: 100%; height: 36px; margin: 0; border-radius: var(--radius); border: 1px solid var(--card-border); cursor: pointer; font-weight: 600; font-size: 12px; background: var(--card); color: var(--text-muted); display: flex; align-items: center; justify-content: center; transition: 0.1s; }
     .action-pill:hover { background: #1a2f45; }
     .action-pill:active { transform: scale(0.97); } 
     
     #strikethroughToggleBtn { margin-bottom: 12px; }
     
-    /* COMPACTED INTENSITY */
-    .intensity-wrapper { 
-        display: flex; background: #273647; border: 1px solid rgba(66, 71, 84, 0.2); 
-        border-radius: var(--radius); padding: 3px; height: 38px; box-sizing: border-box;
-    }
-    .intensity-btn { 
-        flex: 1; border: none; border-radius: 6px; cursor: pointer; background: transparent; 
-        color: var(--text-muted); font-weight: 600; font-size: 13px; transition: 0.2s;
-    }
+    .intensity-wrapper { display: flex; background: #273647; border: 1px solid rgba(66, 71, 84, 0.2); border-radius: var(--radius); padding: 3px; height: 38px; box-sizing: border-box; }
+    .intensity-btn { flex: 1; border: none; border-radius: 6px; cursor: pointer; background: transparent; color: var(--text-muted); font-weight: 600; font-size: 13px; transition: 0.2s; }
     .intensity-btn.active { background: #ADC6FF; color: #002E6A; box-shadow: 0px 0px 15px rgba(77, 142, 255, 0.2); }
 
-    /* COMPACTED TOGGLES */
     .toggles-group { border-top: 1px solid rgba(66, 71, 84, 0.2); border-bottom: 1px solid rgba(66, 71, 84, 0.2); padding: 6px 0; margin: 12px 0; }
     .toggle-row { display: flex; justify-content: space-between; align-items: center; margin: 10px 0; }
     .label-text { font-size: 12px; font-weight: 500; color: #D4E4FA; }
@@ -91,7 +64,6 @@
     input:checked + .slider { background-color: var(--accent); border-color: var(--accent); }
     input:checked + .slider:before { transform: translateX(16px); background-color: white; }
 
-    /* COMPACTED BOTTOM ACTIONS */
     #exportBtn { background: var(--accent); color: #00285D; border: none; box-shadow: 0px 0px 15px rgba(77, 142, 255, 0.2); margin-top: 12px; margin-bottom: 6px;}
     #exportBtn:hover { background: #3a75d6; }
     #clearSelection { margin-bottom: 6px; }
@@ -99,10 +71,21 @@
   </style>
 </head>
 <body>
-  <h2>Highlight Pro</h2>
+  
+  <div class="header-row">
+    <h2>Highlight Pro</h2>
+    <select id="langSelector" class="lang-select">
+        <option value="en">English</option>
+        <option value="sw">Swahili</option>
+        <option value="lg">Luganda</option>
+        <option value="fr">Français</option>
+        <option value="es">Español</option>
+    </select>
+  </div>
+
   <div id="mainControls">
     
-    <h4>Colors</h4>
+    <h4 data-i18n="title_colors">Colors</h4>
     <div class="grid">
       <div id="yellow" class="color-btn preset-color" data-color="#FFC107"></div>
       <div id="blue" class="color-btn preset-color" data-color="#2196F3"></div>
@@ -110,33 +93,32 @@
       <div id="green" class="color-btn preset-color" data-color="#4CAF50"></div>
     </div>
 
-    <!-- WIDER CUSTOM COLOR PICKER WITH BOLD LABEL -->
     <div class="custom-color-container">
-        <span class="sub-label">Custom Color</span>
+        <span class="sub-label" data-i18n="custom_color">Custom Color</span>
         <input type="color" id="customColorPicker" class="color-picker-input" value="#ff00ff" title="Pick Custom Color">
     </div>
 
-    <button id="strikethroughToggleBtn" class="action-pill">
+    <button id="strikethroughToggleBtn" class="action-pill" data-i18n="strike_off">
       Strikethrough Mode: OFF
     </button>
 
     <div class="toggles-group">
-      <div class="toggle-row"><span class="label-text">Auto-Highlight</span><label class="switch"><input type="checkbox" id="autoModeToggle"><span class="slider"></span></label></div>
-      <div class="toggle-row"><span class="label-text">Frosted Glass UI</span><label class="switch"><input type="checkbox" id="glassToggle" checked><span class="slider"></span></label></div>
-      <div class="toggle-row"><span class="label-text">Keep Panel Open</span><label class="switch"><input type="checkbox" id="pinSidebarToggle"><span class="slider"></span></label></div>
-      <div class="toggle-row"><span class="label-text">Show Scroll Tags</span><label class="switch"><input type="checkbox" id="minimapToggle" checked><span class="slider"></span></label></div>
+      <div class="toggle-row"><span class="label-text" data-i18n="auto_highlight">Auto-Highlight</span><label class="switch"><input type="checkbox" id="autoModeToggle"><span class="slider"></span></label></div>
+      <div class="toggle-row"><span class="label-text" data-i18n="glass_ui">Frosted Glass UI</span><label class="switch"><input type="checkbox" id="glassToggle" checked><span class="slider"></span></label></div>
+      <div class="toggle-row"><span class="label-text" data-i18n="keep_open">Keep Panel Open</span><label class="switch"><input type="checkbox" id="pinSidebarToggle"><span class="slider"></span></label></div>
+      <div class="toggle-row"><span class="label-text" data-i18n="show_tags">Show Scroll Tags</span><label class="switch"><input type="checkbox" id="minimapToggle" checked><span class="slider"></span></label></div>
     </div>
 
-    <h4>Intensity</h4>
+    <h4 data-i18n="title_intensity">Intensity</h4>
     <div class="intensity-wrapper">
-      <button id="lowOpacity" class="intensity-btn">Low</button>
-      <button id="defaultOpacity" class="intensity-btn active">Solid</button>
+      <button id="lowOpacity" class="intensity-btn" data-i18n="btn_low">Low</button>
+      <button id="defaultOpacity" class="intensity-btn active" data-i18n="btn_solid">Solid</button>
     </div>
 
-    <h4 style="margin-top: 16px;">Actions</h4>
-    <button id="exportBtn" class="action-pill">Export to Clipboard</button>
-    <button id="clearSelection" class="action-pill">Clear Selected Text</button>
-    <button id="clear" class="action-pill">Clear All Page</button>
+    <h4 style="margin-top: 16px;" data-i18n="title_actions">Actions</h4>
+    <button id="exportBtn" class="action-pill" data-i18n="btn_export">Export to Clipboard</button>
+    <button id="clearSelection" class="action-pill" data-i18n="btn_clear_sel">Clear Selected Text</button>
+    <button id="clear" class="action-pill" data-i18n="btn_clear_all">Clear All Page</button>
   </div>
   <script src="sidebar.js"></script>
 </body>
