@@ -1,6 +1,29 @@
-let config = { color: "#FFC107", opacity: "1.0", autoMode: false, pinSidebar: false, showMinimap: true, strikethrough: false, glassTheme: true };
+// Added language to config
+let config = { color: "#FFC107", opacity: "1.0", autoMode: false, pinSidebar: false, showMinimap: true, strikethrough: false, glassTheme: true, lang: "en" };
 
+// --- TRANSLATION ENGINE ---
+function applyLanguage() {
+    const langData = i18n[config.lang] || i18n["en"]; // Fallback to English
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+        const key = el.getAttribute('data-i18n');
+        if (langData[key]) {
+            el.innerText = langData[key];
+        }
+    });
+    
+    // Specifically handle the strikethrough button since its text changes based on state
+    const stBtn = document.getElementById('strikethroughToggleBtn');
+    stBtn.innerText = config.strikethrough ? langData["strike_on"] : langData["strike_off"];
+}
+
+document.getElementById('langSelector').addEventListener('change', (e) => {
+    config.lang = e.target.value;
+    saveConfig();
+});
+
+// --- EXISTING UI ENGINE ---
 function updateUI() {
+    document.getElementById('langSelector').value = config.lang;
     document.getElementById('autoModeToggle').checked = config.autoMode;
     document.getElementById('pinSidebarToggle').checked = config.pinSidebar;
     document.getElementById('minimapToggle').checked = config.showMinimap;
@@ -11,11 +34,9 @@ function updateUI() {
     
     const stBtn = document.getElementById('strikethroughToggleBtn');
     if (config.strikethrough) {
-        stBtn.innerHTML = 'Strikethrough Mode: ON';
         stBtn.style.background = '#4D8EFF'; stBtn.style.color = '#00285D'; stBtn.style.borderColor = 'transparent';
         stBtn.style.textDecoration = 'line-through';
     } else {
-        stBtn.innerHTML = 'Strikethrough Mode: OFF';
         stBtn.style.background = 'var(--card)'; stBtn.style.color = 'var(--text-muted)'; stBtn.style.borderColor = 'var(--card-border)';
         stBtn.style.textDecoration = 'none';
     }
@@ -34,6 +55,8 @@ function updateUI() {
     } else {
         picker.classList.remove('active-picker');
     }
+
+    applyLanguage(); // Apply translations whenever UI updates
 }
 
 chrome.storage.local.get(['lastConfig'], (res) => {
@@ -63,16 +86,9 @@ document.querySelectorAll('.preset-color').forEach(button => {
 });
 
 const customPicker = document.getElementById('customColorPicker');
-
-customPicker.addEventListener('click', (e) => {
-    config.color = e.target.value; triggerManualHighlight(true); 
-});
-customPicker.addEventListener('input', (e) => {
-    config.color = e.target.value; triggerManualHighlight(true);
-});
-customPicker.addEventListener('change', (e) => {
-    config.color = e.target.value; saveConfig(); triggerManualHighlight(false);
-});
+customPicker.addEventListener('click', (e) => { config.color = e.target.value; triggerManualHighlight(true); });
+customPicker.addEventListener('input', (e) => { config.color = e.target.value; triggerManualHighlight(true); });
+customPicker.addEventListener('change', (e) => { config.color = e.target.value; saveConfig(); triggerManualHighlight(false); });
 
 function triggerManualHighlight(isPreview) {
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
@@ -85,10 +101,17 @@ document.getElementById('clear').addEventListener('click', () => { chrome.tabs.q
 
 document.getElementById('exportBtn').addEventListener('click', () => {
     const btn = document.getElementById('exportBtn');
+    const langData = i18n[config.lang] || i18n["en"];
+    
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
         chrome.tabs.sendMessage(tabs[0].id, { action: "exportAndCopy" }, (response) => {
-            if (response && response.success) { btn.innerText = "Copied!"; setTimeout(() => btn.innerText = "Export to Clipboard", 2000); } 
-            else { btn.innerText = "Nothing to export"; setTimeout(() => btn.innerText = "Export to Clipboard", 2000); }
+            if (response && response.success) { 
+                btn.innerText = langData["msg_copied"]; 
+                setTimeout(() => btn.innerText = langData["btn_export"], 2000); 
+            } else { 
+                btn.innerText = langData["msg_empty"]; 
+                setTimeout(() => btn.innerText = langData["btn_export"], 2000); 
+            }
         });
     });
 });
