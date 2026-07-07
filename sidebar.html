@@ -3,23 +3,33 @@
 <head>
   <meta charset="UTF-8">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700;800&display=swap" rel="stylesheet">
-  <!-- Load our dictionary -->
-  <script src="translations.js"></script>
   <style>
     :root { 
-      --bg-glass: rgba(5, 20, 36, 0.95); --card: #122131; --card-border: rgba(66, 71, 84, 0.3);
-      --text: #FFFFFF; --text-muted: #C2C6D6; --accent: #4D8EFF; --radius: 8px; 
+      --bg-glass: rgba(5, 20, 36, 0.95); 
+      --card: #122131; 
+      --card-border: rgba(66, 71, 84, 0.3);
+      --text: #FFFFFF; 
+      --text-muted: #C2C6D6;
+      --accent: #4D8EFF; 
+      --radius: 8px; 
     }
     
     html, body { background: transparent !important; color-scheme: dark; overflow-x: hidden; }
+
+    /* RTL Magic: Flips margin for Arabic */
+    html[dir="rtl"] .slider:before { left: auto; right: 2px; }
+    html[dir="rtl"] input:checked + .slider:before { transform: translateX(-16px); }
+
     ::-webkit-scrollbar { width: 5px; }
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.15); border-radius: 10px; }
     ::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.3); }
 
-    body { width: 100%; height: 100vh; padding: 14px 16px; box-sizing: border-box; font-family: 'Inter', sans-serif; color: var(--text); margin: 0; overflow-y: auto; }
+    body { 
+      width: 100%; height: 100vh; padding: 14px 16px; box-sizing: border-box; 
+      font-family: 'Inter', sans-serif; color: var(--text); margin: 0; overflow-y: auto; 
+    }
     
-    /* Header with Language Selector */
     .header-row { display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 1px solid rgba(66, 71, 84, 0.2); margin-bottom: 12px; }
     h2 { font-size: 20px; font-weight: 700; margin: 0; letter-spacing: -0.45px; }
     
@@ -76,10 +86,29 @@
     <h2>Highlight Pro</h2>
     <select id="langSelector" class="lang-select">
         <option value="en">English</option>
-        <option value="sw">Swahili</option>
-        <option value="lg">Luganda</option>
-        <option value="fr">Français</option>
         <option value="es">Español</option>
+        <option value="pt">Português</option>
+        <option value="fr">Français</option>
+        <option value="de">Deutsch</option>
+        <option value="it">Italiano</option>
+        <option value="ru">Русский</option>
+        <option value="tr">Türkçe</option>
+        <option value="zh">中文</option>
+        <option value="ja">日本語</option>
+        <option value="ko">한국어</option>
+        <option value="hi">हिन्दी</option>
+        <option value="ar">العربية</option>
+        <option value="id">Bahasa Indonesia</option>
+        <option value="vi">Tiếng Việt</option>
+        <option value="sw">Kiswahili</option>
+        <option value="lg-UG">Luganda</option>
+        <option value="nyn-UG">Runyankole</option>
+        <option value="ha">Hausa</option>
+        <option value="am">አማርኛ</option>
+        <option value="af">Afrikaans</option>
+        <option value="zu">isiZulu</option>
+        <option value="xh">isiXhosa</option>
+        <option value="sn">chiShona</option>
     </select>
   </div>
 
@@ -120,6 +149,9 @@
     <button id="clearSelection" class="action-pill" data-i18n="btn_clear_sel">Clear Selected Text</button>
     <button id="clear" class="action-pill" data-i18n="btn_clear_all">Clear All Page</button>
   </div>
+  
+  <!-- IMPORTANT: Load translations BEFORE sidebar logic -->
+  <script src="translations.js"></script>
   <script src="sidebar.js"></script>
 </body>
 </html>

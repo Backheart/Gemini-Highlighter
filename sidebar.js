@@ -1,19 +1,32 @@
-// Added language to config
 let config = { color: "#FFC107", opacity: "1.0", autoMode: false, pinSidebar: false, showMinimap: true, strikethrough: false, glassTheme: true, lang: "en" };
 
-// --- TRANSLATION ENGINE ---
+// --- TRANSLATION ENGINE & RTL SUPPORT ---
 function applyLanguage() {
-    const langData = i18n[config.lang] || i18n["en"]; // Fallback to English
-    document.querySelectorAll('[data-i18n]').forEach(el => {
-        const key = el.getAttribute('data-i18n');
-        if (langData[key]) {
-            el.innerText = langData[key];
+    try {
+        // Safely pull from translations.js
+        const langData = typeof getLocale === "function" ? getLocale(config.lang) : (i18n[config.lang] || i18n["en"]);
+        
+        // Translate all tags
+        document.querySelectorAll('[data-i18n]').forEach(el => {
+            const key = el.getAttribute('data-i18n');
+            if (langData[key]) {
+                el.innerText = langData[key];
+            }
+        });
+        
+        // Strikethrough dynamic text
+        const stBtn = document.getElementById('strikethroughToggleBtn');
+        stBtn.innerText = config.strikethrough ? langData["strike_on"] : langData["strike_off"];
+
+        // RIGHT-TO-LEFT MAGIC FOR ARABIC
+        if (config.lang === 'ar') {
+            document.documentElement.setAttribute('dir', 'rtl');
+        } else {
+            document.documentElement.setAttribute('dir', 'ltr');
         }
-    });
-    
-    // Specifically handle the strikethrough button since its text changes based on state
-    const stBtn = document.getElementById('strikethroughToggleBtn');
-    stBtn.innerText = config.strikethrough ? langData["strike_on"] : langData["strike_off"];
+    } catch (error) {
+        console.warn("Highlighter Pro: Translation file missing or loading error. Defaulting to English.", error);
+    }
 }
 
 document.getElementById('langSelector').addEventListener('change', (e) => {
@@ -56,7 +69,7 @@ function updateUI() {
         picker.classList.remove('active-picker');
     }
 
-    applyLanguage(); // Apply translations whenever UI updates
+    applyLanguage(); // Run the translation engine immediately
 }
 
 chrome.storage.local.get(['lastConfig'], (res) => {
@@ -101,7 +114,9 @@ document.getElementById('clear').addEventListener('click', () => { chrome.tabs.q
 
 document.getElementById('exportBtn').addEventListener('click', () => {
     const btn = document.getElementById('exportBtn');
-    const langData = i18n[config.lang] || i18n["en"];
+    
+    // Safely get translation for buttons
+    const langData = (typeof getLocale === "function") ? getLocale(config.lang) : (i18n["en"]);
     
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
         chrome.tabs.sendMessage(tabs[0].id, { action: "exportAndCopy" }, (response) => {
